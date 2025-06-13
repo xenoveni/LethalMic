@@ -1,0 +1,12 @@
+{
+    "name": "LethalMic",
+    "version_number": "1.0.0",
+    "website_url": "https://github.com/xenoveni/LethalMic",
+    "description": "LethalMic - Advanced audio processing for Lethal Company with dynamic range compression, noise reduction, echo suppression, adaptive equalization, and spatial audio enhancement.",
+    "dependencies": [
+        "BepInEx-BepInExPack-5.4.2100"
+    ],
+    "authors": [
+        "xenoveni"
+    ]
+} 
