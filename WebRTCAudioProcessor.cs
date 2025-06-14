@@ -27,14 +27,15 @@ namespace LethalMic
     public class WebRTCAudioProcessor : IDisposable
     {
         private readonly WebRTCAudioProcessingOptions _options;
-        private readonly OpusEncoder _encoder;
-        private readonly OpusDecoder _decoder;
+        private OpusEncoder _encoder;
+        private OpusDecoder _decoder;
         private IntPtr _rnnoise;
         private readonly float[] _floatBuffer;
         private readonly short[] _shortBuffer;
         private readonly short[] _rnnoiseBuffer;
         private readonly byte[] _opusBuffer;
         private bool _disposed;
+        private bool _concentusAvailable = false;
         
         // RNNoise P/Invoke declarations
         [DllImport("rnnoise", CallingConvention = CallingConvention.Cdecl)]
@@ -50,6 +51,7 @@ namespace LethalMic
         {
             _options = options;
             
+            // Initialize Concentus Opus codec with error handling
             try
             {
                 _encoder = OpusEncoder.Create(options.SampleRate, options.Channels, OpusApplication.OPUS_APPLICATION_VOIP);
@@ -60,11 +62,16 @@ namespace LethalMic
                 _encoder.Complexity = options.ProcessingQuality;
                 _encoder.UseVBR = true;
                 _encoder.UseDTX = true; // Discontinuous transmission for silence
+                
+                _concentusAvailable = true;
+                UnityEngine.Debug.Log("Concentus Opus codec initialized successfully");
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogError($"Failed to initialize Opus codec: {ex.Message}");
-                throw;
+                UnityEngine.Debug.LogWarning($"Failed to initialize Opus codec: {ex.Message}. Audio processing will continue without Opus encoding.");
+                _concentusAvailable = false;
+                _encoder = null;
+                _decoder = null;
             }
             
             // Initialize RNNoise if available
@@ -158,8 +165,8 @@ namespace LethalMic
                 isSpeech = energy > 0.001f;
             }
 
-            // Encode with Opus (if speech) for quality enhancement
-            if (isSpeech)
+            // Encode with Opus (if speech and available) for quality enhancement
+            if (isSpeech && _concentusAvailable && _encoder != null)
             {
                 try
                 {

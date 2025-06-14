@@ -238,66 +238,8 @@ namespace LethalMic
         /// <summary>
         /// Patch Unity's internal audio processing for voice chat
         /// </summary>
-        [HarmonyPatch]
-        public static class VoiceChatAudio_Patch
-        {
-            // This will be dynamically targeted based on the game's voice chat implementation
-            public static MethodBase TargetMethod()
-            {
-                try
-                {
-                    // Try to find voice chat related methods in common assemblies
-                    var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-                    
-                    foreach (var assembly in assemblies)
-                    {
-                        if (assembly.GetName().Name.Contains("Dissonance") || 
-                            assembly.GetName().Name.Contains("VoiceChat") ||
-                            assembly.GetName().Name.Contains("Voice"))
-                        {
-                            var types = assembly.GetTypes();
-                            foreach (var type in types)
-                            {
-                                var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
-                                foreach (var method in methods)
-                                {
-                                    if (method.Name.Contains("Process") && 
-                                        method.GetParameters().Any(p => p.ParameterType == typeof(float[])))
-                                    {
-                                        Debug.Log($"[LethalMic] Found potential voice chat method: {type.Name}.{method.Name}");
-                                        return method;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[LethalMic] Could not find voice chat methods: {ex.Message}");
-                }
-                
-                return null;
-            }
-            
-            public static bool Prefix(object __instance, ref float[] audioData)
-            {
-                try
-                {
-                    if (audioData != null && audioData.Length > 0 && _pluginInstance != null)
-                    {
-                        // Process voice chat audio
-                        _pluginInstance.ProcessMicrophoneAudio(audioData, 1); // Assume mono audio for voice chat
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[LethalMic] Error in voice chat audio patch: {ex.Message}");
-                }
-                
-                return true;
-            }
-        }
+        // Note: Dynamic voice chat patching removed to prevent Harmony parameter mismatch errors
+        // Voice chat audio will be captured through other available patches
         
         // Helper methods
         private static void TrackAudioSource(AudioSource audioSource, AudioClip clip = null)
