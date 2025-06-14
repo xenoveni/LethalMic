@@ -55,21 +55,32 @@ namespace LethalMic
         
         private void Awake()
         {
-            Debug.Log($"{LogPrefix} Awake() called - Component created");
-            Debug.Log($"{LogPrefix} GameObject: {gameObject.name}");
-            Debug.Log($"{LogPrefix} Instance ID: {GetInstanceID()}");
+            Debug.Log($"{LogPrefix} Awake() called");
+            Debug.Log($"{LogPrefix} GameObject name: {gameObject.name}");
+            Debug.Log($"{LogPrefix} GameObject active: {gameObject.activeSelf}");
             Debug.Log($"{LogPrefix} Component enabled: {enabled}");
+            Debug.Log($"{LogPrefix} GameObject layer: {gameObject.layer}");
+            Debug.Log($"{LogPrefix} GameObject tag: {gameObject.tag}");
+            Debug.Log($"{LogPrefix} Transform parent: {transform.parent?.name ?? "null"}");
         }
         
         private void OnEnable()
         {
             Debug.Log($"{LogPrefix} OnEnable() called - Component enabled");
+            Debug.Log($"{LogPrefix} GameObject active in hierarchy: {gameObject.activeInHierarchy}");
+            Debug.Log($"{LogPrefix} Component enabled: {enabled}");
         }
         
         private void Start()
         {
             Debug.Log($"{LogPrefix} Start() called - Component started");
             Debug.Log($"{LogPrefix} Plugin reference: {_plugin != null}");
+            Debug.Log($"{LogPrefix} GameObject active: {gameObject.activeSelf}");
+            Debug.Log($"{LogPrefix} Component enabled: {enabled}");
+            Debug.Log($"{LogPrefix} MonoBehaviour isActiveAndEnabled: {isActiveAndEnabled}");
+            
+            // Force log a message to confirm Start completed
+            _plugin?.Logger.LogInfo($"LethalMicUI Start() completed successfully. Ready for Update loop.");
         }
         
         private void OnDisable()
@@ -88,6 +99,15 @@ namespace LethalMic
             _plugin = plugin;
             Debug.Log($"{LogPrefix} Plugin reference set: {_plugin != null}");
             
+            // Force immediate verification that Update will be called
+            Debug.Log($"{LogPrefix} Component state after Initialize:");
+            Debug.Log($"{LogPrefix} - GameObject active: {gameObject.activeSelf}");
+            Debug.Log($"{LogPrefix} - Component enabled: {enabled}");
+            Debug.Log($"{LogPrefix} - isActiveAndEnabled: {isActiveAndEnabled}");
+            
+            // Log to BepInEx as well
+            _plugin?.Logger.LogInfo($"LethalMicUI Initialize() completed. Component ready: {isActiveAndEnabled}");
+            
             _windowRect = new Rect(Screen.width - 650, 50, 600, 700);
             Debug.Log($"{LogPrefix} Window rect set: {_windowRect}");
             Debug.Log($"{LogPrefix} Screen size: {Screen.width}x{Screen.height}");
@@ -103,12 +123,29 @@ namespace LethalMic
             Debug.Log($"{LogPrefix} Initialize() completed successfully");
         }
         
+        private static int updateCallCount = 0;
+        
         private void Update()
         {
+            updateCallCount++;
+            
+            // Force log the first 5 Update calls to confirm it's working
+            if (updateCallCount <= 5)
+            {
+                Debug.Log($"{LogPrefix} Update() call #{updateCallCount} - CONFIRMED WORKING!");
+                _plugin?.Logger.LogInfo($"LethalMicUI Update() call #{updateCallCount} - Update method is being called!");
+            }
+            
             // Log Update calls every 5 seconds to avoid spam
             if (Time.time % 5f < Time.deltaTime)
             {
                 Debug.Log($"{LogPrefix} Update() running - UI visible: {_showUI}, Plugin: {_plugin != null}");
+            }
+            
+            // Log Update method execution every 60 frames (roughly once per second)
+            if (Time.frameCount % 60 == 0)
+            {
+                _plugin?.Logger.LogInfo($"LethalMicUI Update() is running. Frame: {Time.frameCount}, GameObject active: {gameObject.activeSelf}, Component enabled: {enabled}");
             }
             
             // Toggle UI with F8 key
@@ -117,6 +154,7 @@ namespace LethalMic
                 Debug.Log($"{LogPrefix} F8 key pressed! Current UI state: {_showUI}");
                 _showUI = !_showUI;
                 Debug.Log($"{LogPrefix} UI state changed to: {_showUI}");
+                _plugin?.Logger.LogInfo($"F8 key pressed! UI visibility toggled to: {_showUI}");
                 
                 if (_showUI)
                 {
