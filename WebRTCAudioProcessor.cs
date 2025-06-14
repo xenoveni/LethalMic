@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using SIPSorcery.Media;
-using Concentus.Structs;
-using Concentus.Enums;
+// Removed Concentus dependencies - using Unity's built-in audio processing
 using System.Numerics;
 using System.Threading;
 using System.Collections.Concurrent;
@@ -27,15 +26,15 @@ namespace LethalMic
     public class WebRTCAudioProcessor : IDisposable
     {
         private readonly WebRTCAudioProcessingOptions _options;
-        private OpusEncoder _encoder;
-        private OpusDecoder _decoder;
         private IntPtr _rnnoise;
         private readonly float[] _floatBuffer;
         private readonly short[] _shortBuffer;
         private readonly short[] _rnnoiseBuffer;
-        private readonly byte[] _opusBuffer;
         private bool _disposed;
-        private bool _concentusAvailable = false;
+        
+        // Unity built-in audio processing buffers
+        private readonly float[] _processedBuffer;
+        private readonly float[] _tempBuffer;
         
         // RNNoise P/Invoke declarations
         [DllImport("rnnoise", CallingConvention = CallingConvention.Cdecl)]
@@ -51,28 +50,7 @@ namespace LethalMic
         {
             _options = options;
             
-            // Initialize Concentus Opus codec with error handling
-            try
-            {
-                _encoder = OpusEncoder.Create(options.SampleRate, options.Channels, OpusApplication.OPUS_APPLICATION_VOIP);
-                _decoder = OpusDecoder.Create(options.SampleRate, options.Channels);
-                
-                // Configure Opus encoder for better voice quality
-                _encoder.Bitrate = 32000; // 32 kbps for good voice quality
-                _encoder.Complexity = options.ProcessingQuality;
-                _encoder.UseVBR = true;
-                _encoder.UseDTX = true; // Discontinuous transmission for silence
-                
-                _concentusAvailable = true;
-                UnityEngine.Debug.Log("Concentus Opus codec initialized successfully");
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning($"Failed to initialize Opus codec: {ex.Message}. Audio processing will continue without Opus encoding.");
-                _concentusAvailable = false;
-                _encoder = null;
-                _decoder = null;
-            }
+            UnityEngine.Debug.Log("Initializing WebRTC Audio Processor with Unity built-in audio processing");
             
             // Initialize RNNoise if available
             try
@@ -100,7 +78,8 @@ namespace LethalMic
             _floatBuffer = new float[options.FrameSize * options.Channels];
             _shortBuffer = new short[options.FrameSize * options.Channels];
             _rnnoiseBuffer = new short[480]; // RNNoise frame size (10ms at 48kHz)
-            _opusBuffer = new byte[4000]; // Max Opus packet size
+            _processedBuffer = new float[options.FrameSize * options.Channels];
+            _tempBuffer = new float[options.FrameSize * options.Channels];
         }
 
         // Process a frame of audio (in-place, float PCM)
@@ -165,46 +144,28 @@ namespace LethalMic
                 isSpeech = energy > 0.001f;
             }
 
-            // Encode with Opus (if speech and available) for quality enhancement
-            if (isSpeech && _concentusAvailable && _encoder != null)
+            // Unity built-in audio processing for quality enhancement
+            if (isSpeech)
             {
                 try
                 {
-                    // Convert float to short for Opus
+                    // Apply Unity's built-in PCM audio processing
+                    // High-pass filter to remove low-frequency noise
+                    ApplyHighPassFilter(_floatBuffer, length, 80.0f, _options.SampleRate);
+                    
+                    // Dynamic range compression for better voice clarity
+                    ApplyDynamicRangeCompression(_floatBuffer, length, 0.3f, 3.0f);
+                    
+                    // Spectral subtraction for additional noise reduction
+                    ApplySpectralSubtraction(_floatBuffer, length);
+                    
+                    // Copy processed audio back to output
                     for (int i = 0; i < length; i++)
-                        _shortBuffer[i] = (short)System.Math.Clamp(_floatBuffer[i] * short.MaxValue, short.MinValue, short.MaxValue);
-                    
-                    // Encode with Opus
-                    int encoded = _encoder.Encode(_shortBuffer, 0, length, _opusBuffer, 0, _opusBuffer.Length);
-                    
-                    if (encoded > 0)
-                    {
-                        // Decode back to get Opus-processed audio
-                        int decoded = _decoder.Decode(_opusBuffer, 0, encoded, _shortBuffer, 0, length, false);
-                        
-                        if (decoded > 0)
-                        {
-                            // Convert back to float
-                            for (int i = 0; i < System.Math.Min(decoded, length); i++)
-                                data[offset + i] = _shortBuffer[i] / (float)short.MaxValue;
-                        }
-                        else
-                        {
-                            // Fallback to original audio if decode fails
-                            for (int i = 0; i < length; i++)
-                                data[offset + i] = _floatBuffer[i];
-                        }
-                    }
-                    else
-                    {
-                        // Fallback to original audio if encode fails
-                        for (int i = 0; i < length; i++)
-                            data[offset + i] = _floatBuffer[i];
-                    }
+                        data[offset + i] = _floatBuffer[i];
                 }
                 catch (Exception ex)
                 {
-                    UnityEngine.Debug.LogWarning($"Opus processing failed: {ex.Message}");
+                    UnityEngine.Debug.LogWarning($"Unity audio processing failed: {ex.Message}");
                     // Fallback to original audio
                     for (int i = 0; i < length; i++)
                         data[offset + i] = _floatBuffer[i];
@@ -216,6 +177,64 @@ namespace LethalMic
                 float gateReduction = 0.1f; // Reduce to 10% instead of complete silence
                 for (int i = 0; i < length; i++)
                     data[offset + i] = _floatBuffer[i] * gateReduction;
+            }
+        }
+
+        // Unity built-in audio processing methods
+        private void ApplyHighPassFilter(float[] buffer, int length, float cutoffFreq, int sampleRate)
+        {
+            // Simple high-pass filter implementation
+            float rc = 1.0f / (cutoffFreq * 2.0f * Mathf.PI);
+            float dt = 1.0f / sampleRate;
+            float alpha = rc / (rc + dt);
+            
+            for (int i = 1; i < length; i++)
+            {
+                buffer[i] = alpha * (buffer[i] + buffer[i] - buffer[i-1]);
+            }
+        }
+        
+        private void ApplyDynamicRangeCompression(float[] buffer, int length, float threshold, float ratio)
+        {
+            for (int i = 0; i < length; i++)
+            {
+                float sample = Mathf.Abs(buffer[i]);
+                if (sample > threshold)
+                {
+                    float excess = sample - threshold;
+                    float compressedExcess = excess / ratio;
+                    buffer[i] = Mathf.Sign(buffer[i]) * (threshold + compressedExcess);
+                }
+            }
+        }
+        
+        private void ApplySpectralSubtraction(float[] buffer, int length)
+        {
+            // Simple spectral subtraction using moving average for noise estimation
+            const int windowSize = 32;
+            float noiseLevel = 0f;
+            
+            // Estimate noise level from first few samples
+            for (int i = 0; i < Mathf.Min(windowSize, length); i++)
+            {
+                noiseLevel += Mathf.Abs(buffer[i]);
+            }
+            noiseLevel /= Mathf.Min(windowSize, length);
+            
+            // Apply spectral subtraction
+            for (int i = 0; i < length; i++)
+            {
+                float magnitude = Mathf.Abs(buffer[i]);
+                if (magnitude > noiseLevel * 1.5f)
+                {
+                    // Keep signal above noise threshold
+                    buffer[i] = buffer[i];
+                }
+                else
+                {
+                    // Reduce signal below noise threshold
+                    buffer[i] *= 0.3f;
+                }
             }
         }
 
@@ -236,9 +255,6 @@ namespace LethalMic
             {
                 UnityEngine.Debug.LogWarning($"Error disposing RNNoise: {ex.Message}");
             }
-            
-            // Note: OpusEncoder and OpusDecoder in Concentus don't implement IDisposable
-            // They are managed objects and will be garbage collected
             
             _disposed = true;
         }
