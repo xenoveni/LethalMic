@@ -108,11 +108,13 @@ namespace LethalMic
                 // Apply ducking to game audio
                 float duckingMultiplier = _isDucking ? _duckingLevel : 1f;
                 
-                // Smooth the ducking transition
-                _duckingGain = _duckingGain * _duckingSmoothingCoeff + 
-                              duckingMultiplier * (1f - _duckingSmoothingCoeff);
+                // Update envelope follower for smooth gain changes
+                float targetGain = duckingMultiplier;
+                float coeff = targetGain < _envelope ? _attackCoeff : _releaseCoeff;
+                _envelope = _envelope * coeff + targetGain * (1f - coeff);
                 
-                output[i] = gameAudio[i] * _duckingGain;
+                // Apply envelope and makeup gain
+                output[i] = gameAudio[i] * _envelope * _makeupGain;
             }
             
             return output;

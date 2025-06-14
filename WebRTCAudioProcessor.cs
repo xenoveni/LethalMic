@@ -174,6 +174,9 @@ namespace LethalMic
                 
                 // All criteria must pass for speech detection
                 isSpeech = energyCheck && frequencyCheck && zcrCheck;
+                
+                // Update voice activity status for UI
+                UpdateVoiceActivityStatus(isSpeech);
             }
 
             // Unity built-in audio processing for quality enhancement
@@ -253,6 +256,10 @@ namespace LethalMic
             }
             noiseLevel /= Mathf.Min(windowSize, length);
             
+            // Update noise floor for UI (convert to dB)
+            float noiseFloorDb = noiseLevel > 0.0001f ? 20f * Mathf.Log10(noiseLevel) : -60f;
+            UpdateNoiseFloor(noiseFloorDb);
+            
             // Apply spectral subtraction
             for (int i = 0; i < length; i++)
             {
@@ -289,6 +296,30 @@ namespace LethalMic
             }
             
             _disposed = true;
+        }
+        
+        // Additional methods for UI integration
+        private bool _lastVoiceDetected = false;
+        private float _currentNoiseFloor = -50f;
+        
+        public bool IsVoiceDetected()
+        {
+            return _lastVoiceDetected;
+        }
+        
+        public float GetNoiseFloor()
+        {
+            return _currentNoiseFloor;
+        }
+        
+        private void UpdateVoiceActivityStatus(bool isVoiceDetected)
+        {
+            _lastVoiceDetected = isVoiceDetected;
+        }
+        
+        private void UpdateNoiseFloor(float noiseFloor)
+        {
+            _currentNoiseFloor = noiseFloor;
         }
     }
 }

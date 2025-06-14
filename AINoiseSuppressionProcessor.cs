@@ -274,7 +274,18 @@ namespace LethalMic
             // Update signal-to-noise ratio
             for (int i = 0; i < _signalToNoiseRatio.Length; i++)
             {
-                _signalToNoiseRatio[i] = _magnitudeSpectrum[i] / (_noiseFloorEstimate[i] + 1e-6f);
+                float currentSNR = _magnitudeSpectrum[i] / (_noiseFloorEstimate[i] + 1e-6f);
+                
+                // Adapt signal characteristics when voice is active
+                if (voiceActive)
+                {
+                    _signalToNoiseRatio[i] = _signalToNoiseRatio[i] * (1f - _signalAdaptationRate) +
+                                           currentSNR * _signalAdaptationRate;
+                }
+                else
+                {
+                    _signalToNoiseRatio[i] = currentSNR;
+                }
             }
         }
         
