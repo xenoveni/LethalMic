@@ -49,6 +49,8 @@ namespace LethalMic
         private ConfigEntry<float> loopDetectionThreshold;
         private ConfigEntry<int> loopDetectionWindow;
         private ConfigEntry<float> loopSuppressionStrength;
+        private ConfigEntry<bool> aggressiveNoiseSuppression;
+        private ConfigEntry<bool> aggressiveLoopSuppression;
 
         // Audio processing variables
         private float[] noiseProfile;
@@ -130,6 +132,8 @@ namespace LethalMic
                 "Time window in milliseconds for loop detection");
             loopSuppressionStrength = Config.Bind("Audio Loop", "Loop Suppression Strength", 0.9f,
                 "Strength of loop suppression (0-1)");
+            aggressiveNoiseSuppression = Config.Bind("Audio Processing", "Aggressive Noise Suppression", true, "Enable Discord-like aggressive noise suppression and gating");
+            aggressiveLoopSuppression = Config.Bind("Audio Loop", "Aggressive Loop Suppression", true, "Enable aggressive loop detection and suppression");
 
             // Subscribe to config change events
             enableCompression.SettingChanged += (s, e) => ReinitializeProcessing();
@@ -147,6 +151,8 @@ namespace LethalMic
             loopDetectionThreshold.SettingChanged += (s, e) => ReinitializeProcessing();
             loopDetectionWindow.SettingChanged += (s, e) => ReinitializeProcessing();
             loopSuppressionStrength.SettingChanged += (s, e) => ReinitializeProcessing();
+            aggressiveNoiseSuppression.SettingChanged += (s, e) => ReinitializeProcessing();
+            aggressiveLoopSuppression.SettingChanged += (s, e) => ReinitializeProcessing();
         }
 
         private void Awake()
@@ -231,10 +237,6 @@ namespace LethalMic
                     noiseGateLevel = 0;
 
                     isInitialized = true;
-                    if (enableLogging.Value)
-                    {
-                        Logger.LogInfo($"Audio processing initialized with sample rate: {sampleRate}Hz, channels: {channelCount}");
-                    }
                 }
             }
             catch (Exception ex)
@@ -285,8 +287,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in audio processing: {ex}");
-                AddErrorToQueue(ex);
                 // Fall back to unprocessed audio
                 return;
             }
@@ -312,7 +312,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error storing output audio: {ex}");
                 AddErrorToQueue(ex);
             }
         }
@@ -364,26 +363,19 @@ namespace LethalMic
                     }
                 }
 
-                // If we detect a strong correlation, suppress the loop
-                if (maxCorrelation > loopDetectionThreshold.Value)
+                float loopThreshold = aggressiveLoopSuppression.Value ? 0.3f : loopDetectionThreshold.Value;
+                float loopStrength = aggressiveLoopSuppression.Value ? 1.0f : loopSuppressionStrength.Value;
+                if (maxCorrelation > loopThreshold)
                 {
-                    float suppressionFactor = loopSuppressionStrength.Value * maxCorrelation;
-                    
-                    // Apply suppression to the current frame
+                    float suppressionFactor = loopStrength * maxCorrelation;
                     for (int i = 0; i < data.Length; i++)
                     {
                         data[i] *= (1 - suppressionFactor);
-                    }
-
-                    if (enableLogging.Value)
-                    {
-                        Logger.LogInfo($"Detected audio loop with correlation {maxCorrelation:F3} at lag {maxLag}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in loop detection: {ex}");
                 AddErrorToQueue(ex);
             }
         }
@@ -409,30 +401,41 @@ namespace LethalMic
                     // Perform FFT
                     FFT(currentFrame, fftBuffer, true);
 
+                    // Aggressive bandpass filter (100–3000 Hz)
+                    if (aggressiveNoiseSuppression.Value)
+                    {
+                        for (int j = 0; j < fftBuffer.Length; j++)
+                        {
+                            float freq = j * sampleRate / (float)fftBuffer.Length;
+                            if (freq < 100f || freq > 3000f)
+                                fftBuffer[j] = Complex.Zero;
+                        }
+                    }
+
                     if (enableVAD.Value)
                     {
                         // Detect voice activity
                         bool isVoice = DetectVoiceActivity(fftBuffer);
-                        
                         if (!isVoice)
                         {
-                            // If no voice detected, apply strong noise gate
-                            ApplyNoiseGate(fftBuffer);
+                            // Aggressive noise gate
+                            if (aggressiveNoiseSuppression.Value)
+                                ApplyAggressiveNoiseGate(fftBuffer);
+                            else
+                                ApplyNoiseGate(fftBuffer);
                         }
                         else
                         {
-                            // Apply voice-specific processing
                             ApplyVoiceProcessing(fftBuffer);
                         }
                     }
 
                     if (enableNoiseReduction.Value)
                     {
-                        // Estimate and update noise floor
-                        EstimateNoiseFloor(fftBuffer);
-                        
-                        // Apply spectral subtraction
-                        ApplySpectralSubtraction(fftBuffer);
+                        if (aggressiveNoiseSuppression.Value)
+                            ApplyAggressiveSpectralSubtraction(fftBuffer);
+                        else
+                            ApplySpectralSubtraction(fftBuffer);
                     }
 
                     if (enableEchoSuppression.Value)
@@ -478,13 +481,11 @@ namespace LethalMic
 
                 if (enableCompression.Value)
                 {
-                    // Apply dynamic range compression
                     ApplyCompression(data, channels);
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in audio processing: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -549,7 +550,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in FFT computation: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -618,7 +618,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in FFT computation: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -651,7 +650,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in noise floor estimation: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -672,7 +670,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in spectral subtraction: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -695,7 +692,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in cross-correlation: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -731,7 +727,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in echo suppression: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -792,7 +787,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in adaptive EQ: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -826,7 +820,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in spatial enhancement: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -867,7 +860,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in compression: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -881,12 +873,10 @@ namespace LethalMic
                 float totalEnergy = 0;
                 int voiceBandCount = 0;
                 int totalBandCount = 0;
-
                 for (int i = 0; i < spectrum.Length; i++)
                 {
                     float freq = i * sampleRate / (float)spectrum.Length;
                     float magnitude = (float)spectrum[i].Magnitude;
-
                     if (freq >= voiceMinFreq.Value && freq <= voiceMaxFreq.Value)
                     {
                         voiceEnergy += magnitude;
@@ -895,29 +885,22 @@ namespace LethalMic
                     totalEnergy += magnitude;
                     totalBandCount++;
                 }
-
                 if (voiceBandCount > 0 && totalBandCount > 0)
                 {
                     float voiceRatio = voiceEnergy / voiceBandCount;
                     float totalRatio = totalEnergy / totalBandCount;
-                    
-                    // Update voice activity level with attack/release
                     float targetLevel = voiceRatio > totalRatio * 1.5f ? 1.0f : 0.0f;
                     float attackCoeff = Mathf.Exp(-1 / (vadAttackTime.Value / 1000f * sampleRate));
                     float releaseCoeff = Mathf.Exp(-1 / (vadReleaseTime.Value / 1000f * sampleRate));
-                    
                     voiceActivityLevel = targetLevel > voiceActivityLevel ?
                         targetLevel * (1 - attackCoeff) + voiceActivityLevel * attackCoeff :
                         targetLevel * (1 - releaseCoeff) + voiceActivityLevel * releaseCoeff;
-
                     return voiceActivityLevel > Mathf.Pow(10, vadThreshold.Value / 20);
                 }
-
                 return false;
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in voice activity detection: {ex}");
                 AddErrorToQueue(ex);
                 return false;
             }
@@ -948,7 +931,6 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in noise gate application: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }
@@ -988,7 +970,51 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                Logger.LogError($"Error in voice processing: {ex}");
+                AddErrorToQueue(ex);
+                throw;
+            }
+        }
+
+        private void ApplyAggressiveNoiseGate(Complex[] spectrum)
+        {
+            try
+            {
+                float threshold = Mathf.Pow(10, -35f / 20); // Higher threshold
+                float attackCoeff = Mathf.Exp(-1 / (2f / 1000f * sampleRate)); // Fast attack
+                float releaseCoeff = Mathf.Exp(-1 / (10f / 1000f * sampleRate)); // Fast release
+                for (int i = 0; i < spectrum.Length; i++)
+                {
+                    float magnitude = (float)spectrum[i].Magnitude;
+                    float phase = (float)spectrum[i].Phase;
+                    float targetLevel = magnitude > threshold ? 1.0f : 0.0f;
+                    noiseGateLevel = targetLevel > noiseGateLevel ?
+                        targetLevel * (1 - attackCoeff) + noiseGateLevel * attackCoeff :
+                        targetLevel * (1 - releaseCoeff) + noiseGateLevel * releaseCoeff;
+                    spectrum[i] = Complex.FromPolarCoordinates(magnitude * noiseGateLevel, phase);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddErrorToQueue(ex);
+                throw;
+            }
+        }
+
+        private void ApplyAggressiveSpectralSubtraction(Complex[] spectrum)
+        {
+            try
+            {
+                float beta = 2.0f; // Much stronger subtraction
+                for (int i = 0; i < spectrum.Length; i++)
+                {
+                    float magnitude = (float)spectrum[i].Magnitude;
+                    float phase = (float)spectrum[i].Phase;
+                    float subtractedMagnitude = Mathf.Max(0, magnitude - beta * noiseProfile[i]);
+                    spectrum[i] = Complex.FromPolarCoordinates(subtractedMagnitude, phase);
+                }
+            }
+            catch (Exception ex)
+            {
                 AddErrorToQueue(ex);
                 throw;
             }
