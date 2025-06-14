@@ -13,6 +13,7 @@ namespace LethalMic
     {
         private LethalMic _plugin;
         private bool _showUI = false;
+        private static readonly string LogPrefix = "[LethalMicUI]";
         private Rect _windowRect = new Rect(50, 50, 600, 700);
         private Vector2 _scrollPosition = Vector2.zero;
         private GUIStyle _windowStyle;
@@ -52,30 +53,86 @@ namespace LethalMic
         private int _processedSamples = 0;
         private float _lastUpdateTime = 0f;
         
+        private void Awake()
+        {
+            Debug.Log($"{LogPrefix} Awake() called - Component created");
+            Debug.Log($"{LogPrefix} GameObject: {gameObject.name}");
+            Debug.Log($"{LogPrefix} Instance ID: {GetInstanceID()}");
+            Debug.Log($"{LogPrefix} Component enabled: {enabled}");
+        }
+        
+        private void OnEnable()
+        {
+            Debug.Log($"{LogPrefix} OnEnable() called - Component enabled");
+        }
+        
+        private void Start()
+        {
+            Debug.Log($"{LogPrefix} Start() called - Component started");
+            Debug.Log($"{LogPrefix} Plugin reference: {_plugin != null}");
+        }
+        
+        private void OnDisable()
+        {
+            Debug.Log($"{LogPrefix} OnDisable() called - Component disabled");
+        }
+        
+        private void OnDestroy()
+        {
+            Debug.Log($"{LogPrefix} OnDestroy() called - Component destroyed");
+        }
+        
         public void Initialize(LethalMic plugin)
         {
+            Debug.Log($"{LogPrefix} Initialize() called");
             _plugin = plugin;
+            Debug.Log($"{LogPrefix} Plugin reference set: {_plugin != null}");
+            
             _windowRect = new Rect(Screen.width - 650, 50, 600, 700);
+            Debug.Log($"{LogPrefix} Window rect set: {_windowRect}");
+            Debug.Log($"{LogPrefix} Screen size: {Screen.width}x{Screen.height}");
             
             // Initialize microphone level buffer
             for (int i = 0; i < _micLevels.Length; i++)
             {
                 _micLevels[i] = -60f; // Start with silence
             }
+            Debug.Log($"{LogPrefix} Microphone level buffer initialized with {_micLevels.Length} elements");
             
             RefreshPresetList();
+            Debug.Log($"{LogPrefix} Initialize() completed successfully");
         }
         
         private void Update()
         {
+            // Log Update calls every 5 seconds to avoid spam
+            if (Time.time % 5f < Time.deltaTime)
+            {
+                Debug.Log($"{LogPrefix} Update() running - UI visible: {_showUI}, Plugin: {_plugin != null}");
+            }
+            
             // Toggle UI with F8 key
             if (Input.GetKeyDown(KeyCode.F8))
             {
+                Debug.Log($"{LogPrefix} F8 key pressed! Current UI state: {_showUI}");
                 _showUI = !_showUI;
+                Debug.Log($"{LogPrefix} UI state changed to: {_showUI}");
+                
                 if (_showUI)
                 {
+                    Debug.Log($"{LogPrefix} UI opened - refreshing preset list");
                     RefreshPresetList();
                 }
+                else
+                {
+                    Debug.Log($"{LogPrefix} UI closed");
+                }
+            }
+            
+            // Check for any input issues
+            if (Time.time % 10f < Time.deltaTime) // Every 10 seconds
+            {
+                Debug.Log($"{LogPrefix} Input system check - Any key: {Input.anyKey}, Input enabled: {Input.inputString != null}");
             }
             
             // Update microphone visualization data
@@ -87,16 +144,46 @@ namespace LethalMic
         
         private void OnGUI()
         {
-            if (!_showUI) return;
+            // Log OnGUI calls every 2 seconds when UI should be visible
+            if (_showUI && Time.time % 2f < Time.deltaTime)
+            {
+                Debug.Log($"{LogPrefix} OnGUI() called - UI should be visible: {_showUI}");
+                Debug.Log($"{LogPrefix} Screen size in OnGUI: {Screen.width}x{Screen.height}");
+                Debug.Log($"{LogPrefix} Event type: {Event.current?.type}");
+            }
             
-            InitializeStyles();
+            if (!_showUI)
+            {
+                // Log once when UI is hidden
+                if (Time.time % 5f < Time.deltaTime)
+                {
+                    Debug.Log($"{LogPrefix} OnGUI() - UI hidden, returning early");
+                }
+                return;
+            }
             
-            // Main window
-            _windowRect = GUI.Window(12345, _windowRect, DrawMainWindow, "LethalMic Settings & Monitor", _windowStyle);
-            
-            // Clamp window to screen
-            _windowRect.x = Mathf.Clamp(_windowRect.x, 0, Screen.width - _windowRect.width);
-            _windowRect.y = Mathf.Clamp(_windowRect.y, 0, Screen.height - _windowRect.height);
+            try
+            {
+                InitializeStyles();
+                
+                // Main window
+                _windowRect = GUI.Window(12345, _windowRect, DrawMainWindow, "LethalMic Settings & Monitor", _windowStyle);
+                
+                // Clamp window to screen
+                _windowRect.x = Mathf.Clamp(_windowRect.x, 0, Screen.width - _windowRect.width);
+                _windowRect.y = Mathf.Clamp(_windowRect.y, 0, Screen.height - _windowRect.height);
+                
+                // Log successful GUI rendering occasionally
+                if (Time.time % 3f < Time.deltaTime)
+                {
+                    Debug.Log($"{LogPrefix} GUI rendered successfully at position: {_windowRect.position}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"{LogPrefix} Error in OnGUI: {ex.Message}");
+                Debug.LogError($"{LogPrefix} Stack trace: {ex.StackTrace}");
+            }
         }
         
         private void InitializeStyles()
