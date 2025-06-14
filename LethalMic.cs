@@ -36,6 +36,19 @@ namespace LethalMic
         private ConfigEntry<bool> enableAdaptiveEQ;
         private ConfigEntry<bool> enableSpatialEnhancement;
         private ConfigEntry<bool> enableLogging;
+        private ConfigEntry<bool> enableVAD;
+        private ConfigEntry<float> vadThreshold;
+        private ConfigEntry<float> vadAttackTime;
+        private ConfigEntry<float> vadReleaseTime;
+        private ConfigEntry<float> voiceMinFreq;
+        private ConfigEntry<float> voiceMaxFreq;
+        private ConfigEntry<float> noiseGateThreshold;
+        private ConfigEntry<float> noiseGateAttack;
+        private ConfigEntry<float> noiseGateRelease;
+        private ConfigEntry<bool> enableLoopDetection;
+        private ConfigEntry<float> loopDetectionThreshold;
+        private ConfigEntry<int> loopDetectionWindow;
+        private ConfigEntry<float> loopSuppressionStrength;
 
         // Audio processing variables
         private float[] noiseProfile;
@@ -47,12 +60,18 @@ namespace LethalMic
         private float[] crossCorrelationBuffer;
         private float[] adaptiveEQBuffer;
         private float[] spatialEnhancementBuffer;
+        private float[] voiceActivityBuffer;
+        private float[] outputBuffer;
+        private float[] inputBuffer;
+        private float voiceActivityLevel;
+        private float noiseGateLevel;
         private int sampleRate;
         private int channelCount;
         private bool isInitialized;
         private readonly object processingLock = new object();
         private readonly Queue<Exception> errorQueue = new Queue<Exception>();
         private const int MAX_ERROR_QUEUE_SIZE = 10;
+        private const int MAX_BUFFER_SIZE = 48000; // 1 second at 48kHz
 
         public LethalMic()
         {
@@ -85,6 +104,32 @@ namespace LethalMic
                 "Enable spatial audio enhancement for better 3D positioning");
             enableLogging = Config.Bind("Debug", "Enable Detailed Logging", false, 
                 "Enable detailed logging for troubleshooting");
+            enableVAD = Config.Bind("Voice Detection", "Enable Voice Activity Detection", true,
+                "Enable voice activity detection to filter out non-speech audio");
+            vadThreshold = Config.Bind("Voice Detection", "VAD Threshold", -30f,
+                "Threshold in dB for voice activity detection");
+            vadAttackTime = Config.Bind("Voice Detection", "VAD Attack Time", 10f,
+                "Attack time in milliseconds for voice detection");
+            vadReleaseTime = Config.Bind("Voice Detection", "VAD Release Time", 100f,
+                "Release time in milliseconds for voice detection");
+            voiceMinFreq = Config.Bind("Voice Detection", "Minimum Voice Frequency", 85f,
+                "Minimum frequency in Hz for voice detection");
+            voiceMaxFreq = Config.Bind("Voice Detection", "Maximum Voice Frequency", 255f,
+                "Maximum frequency in Hz for voice detection");
+            noiseGateThreshold = Config.Bind("Voice Detection", "Noise Gate Threshold", -45f,
+                "Threshold in dB for noise gate");
+            noiseGateAttack = Config.Bind("Voice Detection", "Noise Gate Attack Time", 5f,
+                "Attack time in milliseconds for noise gate");
+            noiseGateRelease = Config.Bind("Voice Detection", "Noise Gate Release Time", 50f,
+                "Release time in milliseconds for noise gate");
+            enableLoopDetection = Config.Bind("Audio Loop", "Enable Loop Detection", true,
+                "Enable detection and prevention of audio feedback loops");
+            loopDetectionThreshold = Config.Bind("Audio Loop", "Loop Detection Threshold", 0.7f,
+                "Threshold for detecting audio feedback loops (0-1)");
+            loopDetectionWindow = Config.Bind("Audio Loop", "Loop Detection Window", 1000,
+                "Time window in milliseconds for loop detection");
+            loopSuppressionStrength = Config.Bind("Audio Loop", "Loop Suppression Strength", 0.9f,
+                "Strength of loop suppression (0-1)");
 
             // Subscribe to config change events
             enableCompression.SettingChanged += (s, e) => ReinitializeProcessing();
@@ -93,6 +138,15 @@ namespace LethalMic
             enableAdaptiveEQ.SettingChanged += (s, e) => ReinitializeProcessing();
             enableSpatialEnhancement.SettingChanged += (s, e) => ReinitializeProcessing();
             fftSize.SettingChanged += (s, e) => ReinitializeProcessing();
+            enableVAD.SettingChanged += (s, e) => ReinitializeProcessing();
+            vadThreshold.SettingChanged += (s, e) => ReinitializeProcessing();
+            voiceMinFreq.SettingChanged += (s, e) => ReinitializeProcessing();
+            voiceMaxFreq.SettingChanged += (s, e) => ReinitializeProcessing();
+            noiseGateThreshold.SettingChanged += (s, e) => ReinitializeProcessing();
+            enableLoopDetection.SettingChanged += (s, e) => ReinitializeProcessing();
+            loopDetectionThreshold.SettingChanged += (s, e) => ReinitializeProcessing();
+            loopDetectionWindow.SettingChanged += (s, e) => ReinitializeProcessing();
+            loopSuppressionStrength.SettingChanged += (s, e) => ReinitializeProcessing();
         }
 
         private void Awake()
@@ -160,12 +214,21 @@ namespace LethalMic
                     crossCorrelationBuffer = new float[bufferSize];
                     adaptiveEQBuffer = new float[bufferSize];
                     spatialEnhancementBuffer = new float[bufferSize];
+                    voiceActivityBuffer = new float[bufferSize];
+                    
+                    // Initialize loop detection buffers
+                    int maxBufferSize = Math.Min(MAX_BUFFER_SIZE, sampleRate * loopDetectionWindow.Value / 1000);
+                    outputBuffer = new float[maxBufferSize];
+                    inputBuffer = new float[maxBufferSize];
 
                     // Initialize window function (Hann window)
                     for (int i = 0; i < bufferSize; i++)
                     {
                         windowFunction[i] = 0.5f * (1 - Mathf.Cos(2 * Mathf.PI * i / (bufferSize - 1)));
                     }
+
+                    voiceActivityLevel = 0;
+                    noiseGateLevel = 0;
 
                     isInitialized = true;
                     if (enableLogging.Value)
@@ -205,7 +268,19 @@ namespace LethalMic
 
                 lock (processingLock)
                 {
+                    // Store output audio for loop detection
+                    if (enableLoopDetection.Value)
+                    {
+                        StoreOutputAudio(data, channels);
+                    }
+
                     ProcessAudio(data, channels);
+
+                    // Check for audio loops
+                    if (enableLoopDetection.Value)
+                    {
+                        DetectAndPreventLoops(data, channels);
+                    }
                 }
             }
             catch (Exception ex)
@@ -214,6 +289,102 @@ namespace LethalMic
                 AddErrorToQueue(ex);
                 // Fall back to unprocessed audio
                 return;
+            }
+        }
+
+        private void StoreOutputAudio(float[] data, int channels)
+        {
+            try
+            {
+                // Shift existing buffer
+                Array.Copy(outputBuffer, data.Length / channels, outputBuffer, 0, outputBuffer.Length - data.Length / channels);
+                
+                // Store new data
+                for (int i = 0; i < data.Length / channels; i++)
+                {
+                    float sample = 0;
+                    for (int ch = 0; ch < channels; ch++)
+                    {
+                        sample += data[i * channels + ch];
+                    }
+                    outputBuffer[outputBuffer.Length - data.Length / channels + i] = sample / channels;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error storing output audio: {ex}");
+                AddErrorToQueue(ex);
+            }
+        }
+
+        private void DetectAndPreventLoops(float[] data, int channels)
+        {
+            try
+            {
+                // Shift input buffer
+                Array.Copy(inputBuffer, data.Length / channels, inputBuffer, 0, inputBuffer.Length - data.Length / channels);
+                
+                // Store current input
+                for (int i = 0; i < data.Length / channels; i++)
+                {
+                    float sample = 0;
+                    for (int ch = 0; ch < channels; ch++)
+                    {
+                        sample += data[i * channels + ch];
+                    }
+                    inputBuffer[inputBuffer.Length - data.Length / channels + i] = sample / channels;
+                }
+
+                // Calculate cross-correlation between input and output
+                float maxCorrelation = 0;
+                int maxLag = 0;
+                int correlationWindow = Math.Min(loopDetectionWindow.Value * sampleRate / 1000, inputBuffer.Length);
+
+                for (int lag = 0; lag < correlationWindow; lag++)
+                {
+                    float correlation = 0;
+                    float norm1 = 0;
+                    float norm2 = 0;
+
+                    for (int i = 0; i < correlationWindow - lag; i++)
+                    {
+                        correlation += inputBuffer[i] * outputBuffer[i + lag];
+                        norm1 += inputBuffer[i] * inputBuffer[i];
+                        norm2 += outputBuffer[i + lag] * outputBuffer[i + lag];
+                    }
+
+                    if (norm1 > 0 && norm2 > 0)
+                    {
+                        correlation /= Mathf.Sqrt(norm1 * norm2);
+                        if (correlation > maxCorrelation)
+                        {
+                            maxCorrelation = correlation;
+                            maxLag = lag;
+                        }
+                    }
+                }
+
+                // If we detect a strong correlation, suppress the loop
+                if (maxCorrelation > loopDetectionThreshold.Value)
+                {
+                    float suppressionFactor = loopSuppressionStrength.Value * maxCorrelation;
+                    
+                    // Apply suppression to the current frame
+                    for (int i = 0; i < data.Length; i++)
+                    {
+                        data[i] *= (1 - suppressionFactor);
+                    }
+
+                    if (enableLogging.Value)
+                    {
+                        Logger.LogInfo($"Detected audio loop with correlation {maxCorrelation:F3} at lag {maxLag}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error in loop detection: {ex}");
+                AddErrorToQueue(ex);
             }
         }
 
@@ -237,6 +408,23 @@ namespace LethalMic
 
                     // Perform FFT
                     FFT(currentFrame, fftBuffer, true);
+
+                    if (enableVAD.Value)
+                    {
+                        // Detect voice activity
+                        bool isVoice = DetectVoiceActivity(fftBuffer);
+                        
+                        if (!isVoice)
+                        {
+                            // If no voice detected, apply strong noise gate
+                            ApplyNoiseGate(fftBuffer);
+                        }
+                        else
+                        {
+                            // Apply voice-specific processing
+                            ApplyVoiceProcessing(fftBuffer);
+                        }
+                    }
 
                     if (enableNoiseReduction.Value)
                     {
@@ -680,6 +868,127 @@ namespace LethalMic
             catch (Exception ex)
             {
                 Logger.LogError($"Error in compression: {ex}");
+                AddErrorToQueue(ex);
+                throw;
+            }
+        }
+
+        private bool DetectVoiceActivity(Complex[] spectrum)
+        {
+            try
+            {
+                float voiceEnergy = 0;
+                float totalEnergy = 0;
+                int voiceBandCount = 0;
+                int totalBandCount = 0;
+
+                for (int i = 0; i < spectrum.Length; i++)
+                {
+                    float freq = i * sampleRate / (float)spectrum.Length;
+                    float magnitude = (float)spectrum[i].Magnitude;
+
+                    if (freq >= voiceMinFreq.Value && freq <= voiceMaxFreq.Value)
+                    {
+                        voiceEnergy += magnitude;
+                        voiceBandCount++;
+                    }
+                    totalEnergy += magnitude;
+                    totalBandCount++;
+                }
+
+                if (voiceBandCount > 0 && totalBandCount > 0)
+                {
+                    float voiceRatio = voiceEnergy / voiceBandCount;
+                    float totalRatio = totalEnergy / totalBandCount;
+                    
+                    // Update voice activity level with attack/release
+                    float targetLevel = voiceRatio > totalRatio * 1.5f ? 1.0f : 0.0f;
+                    float attackCoeff = Mathf.Exp(-1 / (vadAttackTime.Value / 1000f * sampleRate));
+                    float releaseCoeff = Mathf.Exp(-1 / (vadReleaseTime.Value / 1000f * sampleRate));
+                    
+                    voiceActivityLevel = targetLevel > voiceActivityLevel ?
+                        targetLevel * (1 - attackCoeff) + voiceActivityLevel * attackCoeff :
+                        targetLevel * (1 - releaseCoeff) + voiceActivityLevel * releaseCoeff;
+
+                    return voiceActivityLevel > Mathf.Pow(10, vadThreshold.Value / 20);
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error in voice activity detection: {ex}");
+                AddErrorToQueue(ex);
+                return false;
+            }
+        }
+
+        private void ApplyNoiseGate(Complex[] spectrum)
+        {
+            try
+            {
+                float threshold = Mathf.Pow(10, noiseGateThreshold.Value / 20);
+                float attackCoeff = Mathf.Exp(-1 / (noiseGateAttack.Value / 1000f * sampleRate));
+                float releaseCoeff = Mathf.Exp(-1 / (noiseGateRelease.Value / 1000f * sampleRate));
+
+                for (int i = 0; i < spectrum.Length; i++)
+                {
+                    float magnitude = (float)spectrum[i].Magnitude;
+                    float phase = (float)spectrum[i].Phase;
+
+                    // Update noise gate level
+                    float targetLevel = magnitude > threshold ? 1.0f : 0.0f;
+                    noiseGateLevel = targetLevel > noiseGateLevel ?
+                        targetLevel * (1 - attackCoeff) + noiseGateLevel * attackCoeff :
+                        targetLevel * (1 - releaseCoeff) + noiseGateLevel * releaseCoeff;
+
+                    // Apply noise gate
+                    spectrum[i] = Complex.FromPolarCoordinates(magnitude * noiseGateLevel, phase);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error in noise gate application: {ex}");
+                AddErrorToQueue(ex);
+                throw;
+            }
+        }
+
+        private void ApplyVoiceProcessing(Complex[] spectrum)
+        {
+            try
+            {
+                // Apply bandpass filter for voice frequencies
+                for (int i = 0; i < spectrum.Length; i++)
+                {
+                    float freq = i * sampleRate / (float)spectrum.Length;
+                    float magnitude = (float)spectrum[i].Magnitude;
+                    float phase = (float)spectrum[i].Phase;
+
+                    // Apply frequency-dependent gain
+                    float gain = 1.0f;
+                    if (freq < voiceMinFreq.Value || freq > voiceMaxFreq.Value)
+                    {
+                        gain = 0.1f; // Strongly attenuate frequencies outside voice range
+                    }
+                    else
+                    {
+                        // Boost voice frequencies slightly
+                        gain = 1.2f;
+                    }
+
+                    spectrum[i] = Complex.FromPolarCoordinates(magnitude * gain, phase);
+                }
+
+                // Apply enhanced echo suppression
+                if (enableEchoSuppression.Value)
+                {
+                    ApplyEchoSuppression(spectrum);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error in voice processing: {ex}");
                 AddErrorToQueue(ex);
                 throw;
             }

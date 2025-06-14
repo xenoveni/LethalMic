@@ -34,6 +34,18 @@ LethalMic is an advanced audio processing mod for Lethal Company that enhances v
 - Enhances directional audio cues
 - Better immersion in the game environment
 
+### 6. Audio Loop Detection
+- Detects and prevents audio feedback loops
+- Works with both speakers and headphones
+- Prevents game audio from being routed back to input
+- Configurable detection sensitivity and suppression
+
+### 7. Voice Activity Detection
+- Intelligent voice detection to filter non-speech audio
+- Configurable voice frequency range
+- Adjustable detection thresholds
+- Smooth transitions between speech and silence
+
 ## Technical Details
 
 ### Audio Processing Pipeline
@@ -58,6 +70,16 @@ LethalMic is an advanced audio processing mod for Lethal Company that enhances v
    - Phase alignment
    - Spatial enhancement
 
+5. **Loop Detection**
+   - Cross-correlation analysis
+   - Real-time feedback detection
+   - Adaptive suppression
+
+6. **Voice Detection**
+   - Frequency analysis
+   - Energy-based detection
+   - Smooth transitions
+
 ### Configuration Options
 ```json
 {
@@ -74,6 +96,23 @@ LethalMic is an advanced audio processing mod for Lethal Company that enhances v
     "Echo Suppression Strength": 0.8,
     "Enable Adaptive EQ": true,
     "Enable Spatial Enhancement": true
+  },
+  "Voice Detection": {
+    "Enable Voice Activity Detection": true,
+    "VAD Threshold": -30.0,
+    "VAD Attack Time": 10.0,
+    "VAD Release Time": 100.0,
+    "Minimum Voice Frequency": 85.0,
+    "Maximum Voice Frequency": 255.0,
+    "Noise Gate Threshold": -45.0,
+    "Noise Gate Attack Time": 5.0,
+    "Noise Gate Release Time": 50.0
+  },
+  "Audio Loop": {
+    "Enable Loop Detection": true,
+    "Loop Detection Threshold": 0.7,
+    "Loop Detection Window": 1000,
+    "Loop Suppression Strength": 0.9
   },
   "Debug": {
     "Enable Detailed Logging": false
@@ -93,6 +132,8 @@ LethalMic is an advanced audio processing mod for Lethal Company that enhances v
 ### Current Phase
 - Core audio processing implementation
 - Basic noise reduction
+- Audio loop detection and prevention
+- Voice activity detection
 - Initial testing and optimization
 
 ### Planned Features
