@@ -1,8 +1,8 @@
 using System;
+using System.Numerics;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
 
 namespace LethalMic
 {
@@ -83,7 +83,7 @@ namespace LethalMic
                 for (int j = 0; j < outputFrames.Length; j++)
                 {
                     float correlation = AnalyzeFrequencyCorrelation(inputFrames[i], outputFrames[j]);
-                    maxCorrelation = Math.Max(maxCorrelation, correlation);
+                    maxCorrelation = System.Math.Max(maxCorrelation, correlation);
                     
                     // Check if correlation exceeds adaptive threshold
                     if (correlation > _adaptiveThreshold)
@@ -132,7 +132,7 @@ namespace LethalMic
         
         private float[] ConvertToMono(float[] data)
         {
-            int frameSize = Math.Min(_fftSize, data.Length);
+            int frameSize = System.Math.Min(_fftSize, data.Length);
             float[] mono = new float[frameSize];
             
             for (int i = 0; i < frameSize; i++)
@@ -179,7 +179,7 @@ namespace LethalMic
             int voiceEndBin = (int)(_voiceFreqMax * _fftSize / _sampleRate);
             
             // Focus on voice frequency range
-            for (int i = voiceStartBin; i < Math.Min(voiceEndBin, spectrum1.Length); i++)
+            for (int i = voiceStartBin; i < System.Math.Min(voiceEndBin, spectrum1.Length); i++)
             {
                 correlation += spectrum1[i] * spectrum2[i];
                 norm1 += spectrum1[i] * spectrum1[i];
@@ -208,7 +208,7 @@ namespace LethalMic
                 float norm1 = 0f;
                 float norm2 = 0f;
                 
-                for (int i = startBin; i < Math.Min(endBin, _inputMagnitude.Length); i++)
+                for (int i = startBin; i < System.Math.Min(endBin, _inputMagnitude.Length); i++)
                 {
                     bandCorrelation += _inputMagnitude[i] * _outputMagnitude[i];
                     norm1 += _inputMagnitude[i] * _inputMagnitude[i];
@@ -273,7 +273,7 @@ namespace LethalMic
             int sustainedCount = 0;
             float sustainedThreshold = _adaptiveThreshold * 0.8f;
             
-            for (int i = 0; i < Math.Min(5, _correlationHistory.Length); i++)
+            for (int i = 0; i < System.Math.Min(5, _correlationHistory.Length); i++)
             {
                 if (_correlationHistory[i] > sustainedThreshold)
                 {
@@ -318,8 +318,8 @@ namespace LethalMic
             // Cooley-Tukey FFT
             for (int len = 2; len <= n; len <<= 1)
             {
-                double ang = 2 * Math.PI / len;
-                Complex wlen = new Complex(Math.Cos(ang), Math.Sin(ang));
+                double ang = 2 * System.Math.PI / len;
+                Complex wlen = new Complex(System.Math.Cos(ang), System.Math.Sin(ang));
                 for (int i = 0; i < n; i += len)
                 {
                     Complex w = Complex.One;

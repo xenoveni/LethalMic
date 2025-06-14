@@ -93,7 +93,7 @@ namespace LethalMic
             if (inputAudio == null || gameAudio == null)
                 return gameAudio ?? new float[0];
             
-            int length = Math.Min(inputAudio.Length, gameAudio.Length);
+            int length = System.Math.Min(inputAudio.Length, gameAudio.Length);
             float[] output = new float[length];
             
             // Analyze voice activity in input audio
@@ -184,7 +184,7 @@ namespace LethalMic
             int voiceStartSample = (int)(_voiceFreqMin * audioData.Length / _sampleRate);
             int voiceEndSample = (int)(_voiceFreqMax * audioData.Length / _sampleRate);
             
-            for (int i = voiceStartSample; i < Math.Min(voiceEndSample, audioData.Length); i++)
+            for (int i = voiceStartSample; i < System.Math.Min(voiceEndSample, audioData.Length); i++)
             {
                 float magnitude = Mathf.Abs(audioData[i]);
                 float frequency = (float)i * _sampleRate / audioData.Length;
@@ -242,7 +242,7 @@ namespace LethalMic
         {
             // Check if there was voice activity in recent history
             int recentActiveFrames = 0;
-            int checkFrames = Math.Min(3, _energyHistorySize); // Check last 3 frames
+            int checkFrames = System.Math.Min(3, _energyHistorySize); // Check last 3 frames
             
             for (int i = 0; i < checkFrames; i++)
             {

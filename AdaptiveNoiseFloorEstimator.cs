@@ -24,7 +24,7 @@ namespace LethalMic
             _adaptationRate = adaptationRate;
             _minNoiseFloor = -60f; // dB
             _maxNoiseFloor = -20f; // dB
-            _windowSize = Math.Max(1, sampleRate / 100); // 10ms window
+            _windowSize = System.Math.Max(1, sampleRate / 100); // 10ms window
             _energyHistory = new float[100]; // Store 100 energy measurements
             _historyIndex = 0;
             _currentNoiseFloor = -40f; // Initial estimate in dB
@@ -54,11 +54,11 @@ namespace LethalMic
                 // Find minimum energy in recent history (likely noise)
                 float minRecentEnergy = float.MaxValue;
                 float avgRecentEnergy = 0f;
-                int validSamples = Math.Min(_frameCount, _energyHistory.Length);
+                int validSamples = System.Math.Min(_frameCount, _energyHistory.Length);
                 
                 for (int i = 0; i < validSamples; i++)
                 {
-                    minRecentEnergy = Math.Min(minRecentEnergy, _energyHistory[i]);
+                    minRecentEnergy = System.Math.Min(minRecentEnergy, _energyHistory[i]);
                     avgRecentEnergy += _energyHistory[i];
                 }
                 avgRecentEnergy /= validSamples;
@@ -146,7 +146,7 @@ namespace LethalMic
             _currentNoiseFloor = -40f;
             _longTermAverage = 0f;
             _shortTermAverage = 0f;
-            Array.Clear(_energyHistory, 0, _energyHistory.Length);
+            System.Array.Clear(_energyHistory, 0, _energyHistory.Length);
         }
         
         public void Dispose()

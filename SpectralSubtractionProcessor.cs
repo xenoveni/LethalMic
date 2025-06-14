@@ -68,7 +68,7 @@ namespace LethalMic
             for (int i = 0; i < _fftSize / 2 + 1; i++)
             {
                 _magnitudeBuffer[i] = (float)_fftBuffer[i].Magnitude;
-                _phaseBuffer[i] = (float)Math.Atan2(_fftBuffer[i].Imaginary, _fftBuffer[i].Real);
+                _phaseBuffer[i] = (float)System.Math.Atan2(_fftBuffer[i].Imaginary, _fftBuffer[i].Real);
             }
 
             // Estimate noise spectrum from first few frames
@@ -92,7 +92,7 @@ namespace LethalMic
                 {
                     float subtractedMagnitude = _magnitudeBuffer[i] - _alpha * _noiseSpectrum[i];
                     float spectralFloor = _beta * _magnitudeBuffer[i];
-                    _magnitudeBuffer[i] = Math.Max(subtractedMagnitude, spectralFloor);
+                    _magnitudeBuffer[i] = System.Math.Max(subtractedMagnitude, spectralFloor);
                 }
             }
 
@@ -150,8 +150,8 @@ namespace LethalMic
             // Cooley-Tukey FFT
             for (int len = 2; len <= n; len <<= 1)
             {
-                double ang = 2 * Math.PI / len;
-                Complex wlen = new Complex(Math.Cos(ang), Math.Sin(ang));
+                double ang = 2 * System.Math.PI / len;
+                Complex wlen = new Complex(System.Math.Cos(ang), System.Math.Sin(ang));
                 for (int i = 0; i < n; i += len)
                 {
                     Complex w = Complex.One;

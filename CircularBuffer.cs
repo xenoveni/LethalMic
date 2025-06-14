@@ -1,4 +1,5 @@
 using System;
+using UnityEngine;
 
 namespace LethalMic
 {
@@ -73,7 +74,7 @@ namespace LethalMic
                 
             lock (_lock)
             {
-                int samplesRead = Math.Min(count, _count);
+                int samplesRead = System.Math.Min(count, _count);
                 
                 for (int i = 0; i < samplesRead; i++)
                 {

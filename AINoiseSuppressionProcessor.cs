@@ -117,8 +117,8 @@ namespace LethalMic
                 _bandNoiseFloors[band] = 0.001f;
                 
                 // Calculate band boundaries
-                float startFreq = (float)(20 * Math.Pow(2, band * 10.0 / _numBands)); // 20 Hz to ~20 kHz
-                float endFreq = (float)(20 * Math.Pow(2, (band + 1) * 10.0 / _numBands));
+                float startFreq = (float)(20 * System.Math.Pow(2, band * 10.0 / _numBands)); // 20 Hz to ~20 kHz
+                float endFreq = (float)(20 * System.Math.Pow(2, (band + 1) * 10.0 / _numBands));
                 
                 int startBin = (int)(startFreq * _fftSize / _sampleRate);
                 int endBin = (int)(endFreq * _fftSize / _sampleRate);
@@ -152,7 +152,7 @@ namespace LethalMic
             // Process in overlapping frames
             for (int i = 0; i < inputAudio.Length; i += _hopSize)
             {
-                int frameLength = Math.Min(_frameSize, inputAudio.Length - i);
+                int frameLength = System.Math.Min(_frameSize, inputAudio.Length - i);
                 
                 // Extract frame with overlap
                 float[] frame = ExtractFrame(inputAudio, i, frameLength);
@@ -473,8 +473,8 @@ namespace LethalMic
             // Cooley-Tukey FFT
             for (int len = 2; len <= n; len <<= 1)
             {
-                double ang = 2 * Math.PI / len;
-                Complex wlen = new Complex(Math.Cos(ang), Math.Sin(ang));
+                double ang = 2 * System.Math.PI / len;
+            Complex wlen = new Complex(System.Math.Cos(ang), System.Math.Sin(ang));
                 for (int i = 0; i < n; i += len)
                 {
                     Complex w = Complex.One;
@@ -584,12 +584,12 @@ namespace LethalMic
             
             float[] output = new float[input.Length];
             
-            for (int i = 0; i < Math.Min(input.Length, _inputSize); i++)
+            for (int i = 0; i < System.Math.Min(input.Length, _inputSize); i++)
             {
                 // Simple neural-like processing
                 float snr = input[i] / (noiseFloor[i] + 1e-6f);
-                float activation = (float)Math.Tanh(snr * _weights[i] + _biases[i]);
-                output[i] = input[i] * Math.Max(0f, Math.Min(1f, activation));
+                float activation = (float)System.Math.Tanh(snr * _weights[i] + _biases[i]);
+                output[i] = input[i] * System.Math.Max(0f, System.Math.Min(1f, activation));
             }
             
             return output;

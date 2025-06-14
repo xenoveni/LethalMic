@@ -66,7 +66,7 @@ namespace LethalMic
             _stepSize = stepSize;
             _regularization = 1e-6f;
             _maxDelay = maxDelay;
-            _fftSize = NextPowerOfTwo(Math.Max(frameSize, filterLength) * 2);
+            _fftSize = NextPowerOfTwo(System.Math.Max(frameSize, filterLength) * 2);
             
             // Initialize adaptive filter
             _adaptiveFilter = new float[_filterLength];
@@ -107,7 +107,7 @@ namespace LethalMic
             if (!IsEnabled || microphoneInput == null || speakerReference == null)
                 return microphoneInput ?? new float[0];
             
-            int length = Math.Min(microphoneInput.Length, speakerReference.Length);
+            int length = System.Math.Min(microphoneInput.Length, speakerReference.Length);
             float[] output = new float[length];
             
             // Store input in circular buffers
@@ -120,7 +120,7 @@ namespace LethalMic
             // Process in blocks
             for (int i = 0; i < length; i += _frameSize)
             {
-                int blockSize = Math.Min(_frameSize, length - i);
+                int blockSize = System.Math.Min(_frameSize, length - i);
                 
                 // Extract blocks
                 float[] micBlock = new float[blockSize];
@@ -170,7 +170,7 @@ namespace LethalMic
         private float[] EstimateEcho(float[] referenceBlock)
         {
             // Update reference buffer
-            int refLength = Math.Min(referenceBlock.Length, _referenceBuffer.Length);
+            int refLength = System.Math.Min(referenceBlock.Length, _referenceBuffer.Length);
             Array.Copy(_referenceBuffer, refLength, _referenceBuffer, 0, _referenceBuffer.Length - refLength);
             Array.Copy(referenceBlock, 0, _referenceBuffer, _referenceBuffer.Length - refLength, refLength);
             
@@ -202,7 +202,7 @@ namespace LethalMic
             
             float normalizedStepSize = _stepSize / referenceEnergy;
             
-            for (int i = 0; i < Math.Min(errorSignal.Length, referenceBlock.Length); i++)
+            for (int i = 0; i < System.Math.Min(errorSignal.Length, referenceBlock.Length); i++)
             {
                 float error = errorSignal[i];
                 
@@ -393,8 +393,8 @@ namespace LethalMic
             // Cooley-Tukey FFT
             for (int len = 2; len <= n; len <<= 1)
             {
-                double ang = 2 * Math.PI / len;
-                Complex wlen = new Complex(Math.Cos(ang), Math.Sin(ang));
+                double ang = 2 * System.Math.PI / len;
+                Complex wlen = new Complex(System.Math.Cos(ang), System.Math.Sin(ang));
                 for (int i = 0; i < n; i += len)
                 {
                     Complex w = Complex.One;
