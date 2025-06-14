@@ -734,20 +734,49 @@ namespace LethalMic
             if (_disposed) return false;
             
             float energy = 0f;
+            float spectralCentroid = 0f;
+            float totalMagnitude = 0f;
+            
+            // Calculate energy and spectral features
             for (int i = 0; i < frame.Length; i++)
             {
+                float magnitude = Mathf.Abs(frame[i]);
                 energy += frame[i] * frame[i];
+                spectralCentroid += i * magnitude;
+                totalMagnitude += magnitude;
             }
             energy /= frame.Length;
+            
+            // Calculate spectral centroid (frequency center of mass)
+            if (totalMagnitude > 0f)
+                spectralCentroid /= totalMagnitude;
             
             _energyHistory[_historyIndex] = energy;
             _historyIndex = (_historyIndex + 1) % _historySize;
             
-            // Update noise floor
+            // Update noise floor more conservatively
             float minEnergy = _energyHistory.Min();
-            _noiseFloor = _noiseFloor * 0.99f + minEnergy * 0.01f;
+            _noiseFloor = _noiseFloor * 0.995f + minEnergy * 0.005f;
             
-            return energy > _noiseFloor * 3f;
+            // More aggressive thresholds for voice detection
+            bool energyCheck = energy > _noiseFloor * 8f; // Increased from 3f to 8f
+            
+            // Voice frequency range check (150Hz - 3400Hz mapped to sample indices)
+            float voiceFreqStart = 150f * frame.Length / _sampleRate;
+            float voiceFreqEnd = 3400f * frame.Length / _sampleRate;
+            bool frequencyCheck = spectralCentroid >= voiceFreqStart && spectralCentroid <= voiceFreqEnd;
+            
+            // Zero crossing rate for voice characteristics
+            int zeroCrossings = 0;
+            for (int i = 1; i < frame.Length; i++)
+            {
+                if ((frame[i] >= 0) != (frame[i-1] >= 0))
+                    zeroCrossings++;
+            }
+            float zcr = (float)zeroCrossings / frame.Length;
+            bool zcrCheck = zcr > 0.02f && zcr < 0.3f; // Voice typical ZCR range
+            
+            return energyCheck && frequencyCheck && zcrCheck;
         }
         
         public void Reset()

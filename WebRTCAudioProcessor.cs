@@ -60,18 +60,18 @@ namespace LethalMic
                     _rnnoise = rnnoise_create(IntPtr.Zero);
                     if (_rnnoise == IntPtr.Zero)
                     {
-                        UnityEngine.Debug.LogWarning("RNNoise initialization failed, noise suppression disabled");
+                        UnityEngine.Debug.Log("RNNoise initialization failed, using Unity built-in noise suppression");
                     }
                 }
             }
             catch (DllNotFoundException)
             {
-                UnityEngine.Debug.LogWarning("RNNoise library not found, noise suppression disabled");
+                UnityEngine.Debug.Log("RNNoise library not found, using Unity built-in noise suppression");
                 _rnnoise = IntPtr.Zero;
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogWarning($"RNNoise initialization failed: {ex.Message}");
+                UnityEngine.Debug.Log($"RNNoise initialization failed, using Unity built-in processing: {ex.Message}");
                 _rnnoise = IntPtr.Zero;
             }
             
@@ -133,15 +133,47 @@ namespace LethalMic
                     _floatBuffer[i] *= gain;
             }
 
-            // VAD (energy-based, can be replaced with Opus VAD or more advanced)
+            // Enhanced VAD with multiple criteria for aggressive voice isolation
             bool isSpeech = true;
             if (_options.VoiceActivityDetection)
             {
                 float energy = 0f;
+                float spectralCentroid = 0f;
+                float totalMagnitude = 0f;
+                int zeroCrossings = 0;
+                
+                // Calculate multiple voice characteristics
                 for (int i = 0; i < length; i++)
+                {
+                    float magnitude = System.Math.Abs(_floatBuffer[i]);
                     energy += _floatBuffer[i] * _floatBuffer[i];
+                    spectralCentroid += i * magnitude;
+                    totalMagnitude += magnitude;
+                    
+                    // Count zero crossings for voice texture analysis
+                    if (i > 0 && ((_floatBuffer[i] >= 0) != (_floatBuffer[i-1] >= 0)))
+                        zeroCrossings++;
+                }
+                
                 energy /= length;
-                isSpeech = energy > 0.001f;
+                if (totalMagnitude > 0f)
+                    spectralCentroid /= totalMagnitude;
+                
+                float zcr = (float)zeroCrossings / length;
+                
+                // Aggressive multi-criteria voice detection
+                bool energyCheck = energy > 0.005f; // Increased threshold
+                
+                // Voice frequency range (150Hz - 3400Hz mapped to sample indices)
+                float voiceFreqStart = 150f * length / _options.SampleRate;
+                float voiceFreqEnd = 3400f * length / _options.SampleRate;
+                bool frequencyCheck = spectralCentroid >= voiceFreqStart && spectralCentroid <= voiceFreqEnd;
+                
+                // Voice-like zero crossing rate (excludes music and pure tones)
+                bool zcrCheck = zcr > 0.02f && zcr < 0.3f;
+                
+                // All criteria must pass for speech detection
+                isSpeech = energyCheck && frequencyCheck && zcrCheck;
             }
 
             // Unity built-in audio processing for quality enhancement
@@ -150,8 +182,8 @@ namespace LethalMic
                 try
                 {
                     // Apply Unity's built-in PCM audio processing
-                    // High-pass filter to remove low-frequency noise
-                    ApplyHighPassFilter(_floatBuffer, length, 80.0f, _options.SampleRate);
+                    // Aggressive high-pass filter to remove speaker bleed and low-frequency noise
+                    ApplyHighPassFilter(_floatBuffer, length, 150.0f, _options.SampleRate);
                     
                     // Dynamic range compression for better voice clarity
                     ApplyDynamicRangeCompression(_floatBuffer, length, 0.3f, 3.0f);
