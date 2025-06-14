@@ -17,7 +17,13 @@
   <ItemGroup>
     <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
     <PackageReference Include="BepInEx.Core" Version="5.4.21" />
+    <PackageReference Include="SIPSorcery" Version="6.0.4" />
     <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" PrivateAssets="all" />
+    <PackageReference Include="Concentus" Version="1.1.7" />
+    <PackageReference Include="RNNoiseSharp" Version="1.0.0" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
   </ItemGroup>
   
   <ItemGroup>
@@ -43,4 +49,4 @@
     <BepInExAssemblyPath>$(LethalCompanyPath)\BepInEx\core</BepInExAssemblyPath>
     <UnityEnginePath>$(LethalCompanyPath)\Lethal Company_Data\Managed</UnityEnginePath>
   </PropertyGroup>
-</Project> 
+</Project>
