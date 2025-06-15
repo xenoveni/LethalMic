@@ -151,20 +151,28 @@ namespace LethalMic
             // Toggle UI with F8 key
             if (Input.GetKeyDown(KeyCode.F8))
             {
-                Debug.Log($"{LogPrefix} F8 key pressed! Current UI state: {_showUI}");
-                _showUI = !_showUI;
-                Debug.Log($"{LogPrefix} UI state changed to: {_showUI}");
-                _plugin?.Logger.LogInfo($"F8 key pressed! UI visibility toggled to: {_showUI}");
-                
-                if (_showUI)
-                {
-                    Debug.Log($"{LogPrefix} UI opened - refreshing preset list");
-                    RefreshPresetList();
-                }
-                else
-                {
-                    Debug.Log($"{LogPrefix} UI closed");
-                }
+                ToggleVisibility();
+            }
+        }
+        
+        /// <summary>
+        /// Public method to toggle UI visibility
+        /// </summary>
+        public void ToggleVisibility()
+        {
+            Debug.Log($"{LogPrefix} ToggleVisibility called! Current UI state: {_showUI}");
+            _showUI = !_showUI;
+            Debug.Log($"{LogPrefix} UI state changed to: {_showUI}");
+            _plugin?.Logger.LogInfo($"UI visibility toggled to: {_showUI}");
+            
+            if (_showUI)
+            {
+                Debug.Log($"{LogPrefix} UI opened - refreshing preset list");
+                RefreshPresetList();
+            }
+            else
+            {
+                Debug.Log($"{LogPrefix} UI closed");
             }
             
             // Check for any input issues
