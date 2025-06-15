@@ -55,72 +55,72 @@ namespace LethalMic
         
         private void Awake()
         {
-            Debug.Log($"{LogPrefix} Awake() called");
-            Debug.Log($"{LogPrefix} GameObject name: {gameObject.name}");
-            Debug.Log($"{LogPrefix} GameObject active: {gameObject.activeSelf}");
-            Debug.Log($"{LogPrefix} Component enabled: {enabled}");
-            Debug.Log($"{LogPrefix} GameObject layer: {gameObject.layer}");
-            Debug.Log($"{LogPrefix} GameObject tag: {gameObject.tag}");
-            Debug.Log($"{LogPrefix} Transform parent: {transform.parent?.name ?? "null"}");
+            UnityEngine.Debug.Log($"{LogPrefix} Awake() called");
+        UnityEngine.Debug.Log($"{LogPrefix} GameObject name: {gameObject.name}");
+        UnityEngine.Debug.Log($"{LogPrefix} GameObject active: {gameObject.activeSelf}");
+        UnityEngine.Debug.Log($"{LogPrefix} Component enabled: {enabled}");
+        UnityEngine.Debug.Log($"{LogPrefix} GameObject layer: {gameObject.layer}");
+        UnityEngine.Debug.Log($"{LogPrefix} GameObject tag: {gameObject.tag}");
+        UnityEngine.Debug.Log($"{LogPrefix} Transform parent: {transform.parent?.name ?? "null"}");
         }
         
         private void OnEnable()
         {
-            Debug.Log($"{LogPrefix} OnEnable() called - Component enabled");
-            Debug.Log($"{LogPrefix} GameObject active in hierarchy: {gameObject.activeInHierarchy}");
-            Debug.Log($"{LogPrefix} Component enabled: {enabled}");
+            UnityEngine.Debug.Log($"{LogPrefix} OnEnable() called - Component enabled");
+        UnityEngine.Debug.Log($"{LogPrefix} GameObject active in hierarchy: {gameObject.activeInHierarchy}");
+        UnityEngine.Debug.Log($"{LogPrefix} Component enabled: {enabled}");
         }
         
         private void Start()
         {
-            Debug.Log($"{LogPrefix} Start() called - Component started");
-            Debug.Log($"{LogPrefix} Plugin reference: {_plugin != null}");
-            Debug.Log($"{LogPrefix} GameObject active: {gameObject.activeSelf}");
-            Debug.Log($"{LogPrefix} Component enabled: {enabled}");
-            Debug.Log($"{LogPrefix} MonoBehaviour isActiveAndEnabled: {isActiveAndEnabled}");
+            UnityEngine.Debug.Log($"{LogPrefix} Start() called - Component started");
+        UnityEngine.Debug.Log($"{LogPrefix} Plugin reference: {_plugin != null}");
+        UnityEngine.Debug.Log($"{LogPrefix} GameObject active: {gameObject.activeSelf}");
+        UnityEngine.Debug.Log($"{LogPrefix} Component enabled: {enabled}");
+        UnityEngine.Debug.Log($"{LogPrefix} MonoBehaviour isActiveAndEnabled: {isActiveAndEnabled}");
             
             // Force log a message to confirm Start completed
-            _plugin?.Logger.LogInfo($"LethalMicUI Start() completed successfully. Ready for Update loop.");
+            LethalMic.Logger.LogInfo($"LethalMicUI Start() completed successfully. Ready for Update loop.");
         }
         
         private void OnDisable()
         {
-            Debug.Log($"{LogPrefix} OnDisable() called - Component disabled");
+            UnityEngine.Debug.Log($"{LogPrefix} OnDisable() called - Component disabled");
         }
         
         private void OnDestroy()
         {
-            Debug.Log($"{LogPrefix} OnDestroy() called - Component destroyed");
+            UnityEngine.Debug.Log($"{LogPrefix} OnDestroy() called - Component destroyed");
         }
         
         public void Initialize(LethalMic plugin)
         {
-            Debug.Log($"{LogPrefix} Initialize() called");
-            _plugin = plugin;
-            Debug.Log($"{LogPrefix} Plugin reference set: {_plugin != null}");
-            
-            // Force immediate verification that Update will be called
-            Debug.Log($"{LogPrefix} Component state after Initialize:");
-            Debug.Log($"{LogPrefix} - GameObject active: {gameObject.activeSelf}");
-            Debug.Log($"{LogPrefix} - Component enabled: {enabled}");
-            Debug.Log($"{LogPrefix} - isActiveAndEnabled: {isActiveAndEnabled}");
+            UnityEngine.Debug.Log($"{LogPrefix} Initialize() called");
+        _plugin = plugin;
+        UnityEngine.Debug.Log($"{LogPrefix} Plugin reference set: {_plugin != null}");
+        
+        // Force immediate verification that Update will be called
+        UnityEngine.Debug.Log($"{LogPrefix} Component state after Initialize:");
+        UnityEngine.Debug.Log($"{LogPrefix} - GameObject active: {gameObject.activeSelf}");
+        UnityEngine.Debug.Log($"{LogPrefix} - Component enabled: {enabled}");
+        UnityEngine.Debug.Log($"{LogPrefix} - isActiveAndEnabled: {isActiveAndEnabled}");
             
             // Log to BepInEx as well
-            _plugin?.Logger.LogInfo($"LethalMicUI Initialize() completed. Component ready: {isActiveAndEnabled}");
+            LethalMic.Logger.LogInfo($"LethalMicUI Initialize() completed. Component ready: {isActiveAndEnabled}");
             
             _windowRect = new Rect(Screen.width - 650, 50, 600, 700);
-            Debug.Log($"{LogPrefix} Window rect set: {_windowRect}");
-            Debug.Log($"{LogPrefix} Screen size: {Screen.width}x{Screen.height}");
+        UnityEngine.Debug.Log($"{LogPrefix} Window rect set: {_windowRect}");
+        UnityEngine.Debug.Log($"{LogPrefix} Screen size: {Screen.width}x{Screen.height}");
             
             // Initialize microphone level buffer
             for (int i = 0; i < _micLevels.Length; i++)
             {
                 _micLevels[i] = -60f; // Start with silence
             }
-            Debug.Log($"{LogPrefix} Microphone level buffer initialized with {_micLevels.Length} elements");
+            UnityEngine.Debug.Log($"{LogPrefix} Microphone level buffer initialized with {_micLevels.Length} elements");
             
             RefreshPresetList();
-            Debug.Log($"{LogPrefix} Initialize() completed successfully");
+            UnityEngine.Debug.Log($"{LogPrefix} Initialize() completed successfully");
         }
         
         private static int updateCallCount = 0;
@@ -132,20 +132,20 @@ namespace LethalMic
             // Force log the first 5 Update calls to confirm it's working
             if (updateCallCount <= 5)
             {
-                Debug.Log($"{LogPrefix} Update() call #{updateCallCount} - CONFIRMED WORKING!");
-                _plugin?.Logger.LogInfo($"LethalMicUI Update() call #{updateCallCount} - Update method is being called!");
+                UnityEngine.Debug.Log($"{LogPrefix} Update() call #{updateCallCount} - CONFIRMED WORKING!");
+                LethalMic.Logger.LogInfo($"LethalMicUI Update() call #{updateCallCount} - Update method is being called!");
             }
             
             // Log Update calls every 5 seconds to avoid spam
             if (Time.time % 5f < Time.deltaTime)
             {
-                Debug.Log($"{LogPrefix} Update() running - UI visible: {_showUI}, Plugin: {_plugin != null}");
+                UnityEngine.Debug.Log($"{LogPrefix} Update() running - UI visible: {_showUI}, Plugin: {_plugin != null}");
             }
             
             // Log Update method execution every 60 frames (roughly once per second)
             if (Time.frameCount % 60 == 0)
             {
-                _plugin?.Logger.LogInfo($"LethalMicUI Update() is running. Frame: {Time.frameCount}, GameObject active: {gameObject.activeSelf}, Component enabled: {enabled}");
+                LethalMic.Logger.LogInfo($"LethalMicUI Update() is running. Frame: {Time.frameCount}, GameObject active: {gameObject.activeSelf}, Component enabled: {enabled}");
             }
             
             // Toggle UI with F8 key
@@ -160,25 +160,25 @@ namespace LethalMic
         /// </summary>
         public void ToggleVisibility()
         {
-            Debug.Log($"{LogPrefix} ToggleVisibility called! Current UI state: {_showUI}");
-            _showUI = !_showUI;
-            Debug.Log($"{LogPrefix} UI state changed to: {_showUI}");
-            _plugin?.Logger.LogInfo($"UI visibility toggled to: {_showUI}");
+            UnityEngine.Debug.Log($"{LogPrefix} ToggleVisibility called! Current UI state: {_showUI}");
+        _showUI = !_showUI;
+        UnityEngine.Debug.Log($"{LogPrefix} UI state changed to: {_showUI}");
+            LethalMic.Logger.LogInfo($"UI visibility toggled to: {_showUI}");
             
             if (_showUI)
             {
-                Debug.Log($"{LogPrefix} UI opened - refreshing preset list");
+                UnityEngine.Debug.Log($"{LogPrefix} UI opened - refreshing preset list");
                 RefreshPresetList();
             }
             else
             {
-                Debug.Log($"{LogPrefix} UI closed");
+                UnityEngine.Debug.Log($"{LogPrefix} UI closed");
             }
             
             // Check for any input issues
             if (Time.time % 10f < Time.deltaTime) // Every 10 seconds
             {
-                Debug.Log($"{LogPrefix} Input system check - Any key: {Input.anyKey}, Input enabled: {Input.inputString != null}");
+                UnityEngine.Debug.Log($"{LogPrefix} Input system check - Any key: {Input.anyKey}, Input enabled: {Input.inputString != null}");
             }
             
             // Update microphone visualization data
@@ -193,9 +193,9 @@ namespace LethalMic
             // Log OnGUI calls every 2 seconds when UI should be visible
             if (_showUI && Time.time % 2f < Time.deltaTime)
             {
-                Debug.Log($"{LogPrefix} OnGUI() called - UI should be visible: {_showUI}");
-                Debug.Log($"{LogPrefix} Screen size in OnGUI: {Screen.width}x{Screen.height}");
-                Debug.Log($"{LogPrefix} Event type: {Event.current?.type}");
+                UnityEngine.Debug.Log($"{LogPrefix} OnGUI() called - UI should be visible: {_showUI}");
+            UnityEngine.Debug.Log($"{LogPrefix} Screen size in OnGUI: {Screen.width}x{Screen.height}");
+            UnityEngine.Debug.Log($"{LogPrefix} Event type: {Event.current?.type}");
             }
             
             if (!_showUI)
@@ -203,7 +203,7 @@ namespace LethalMic
                 // Log once when UI is hidden
                 if (Time.time % 5f < Time.deltaTime)
                 {
-                    Debug.Log($"{LogPrefix} OnGUI() - UI hidden, returning early");
+                    UnityEngine.Debug.Log($"{LogPrefix} OnGUI() - UI hidden, returning early");
                 }
                 return;
             }
@@ -222,13 +222,13 @@ namespace LethalMic
                 // Log successful GUI rendering occasionally
                 if (Time.time % 3f < Time.deltaTime)
                 {
-                    Debug.Log($"{LogPrefix} GUI rendered successfully at position: {_windowRect.position}");
+                    UnityEngine.Debug.Log($"{LogPrefix} GUI rendered successfully at position: {_windowRect.position}");
                 }
             }
             catch (Exception ex)
             {
-                Debug.LogError($"{LogPrefix} Error in OnGUI: {ex.Message}");
-                Debug.LogError($"{LogPrefix} Stack trace: {ex.StackTrace}");
+                UnityEngine.Debug.LogError($"{LogPrefix} Error in OnGUI: {ex.Message}");
+            UnityEngine.Debug.LogError($"{LogPrefix} Stack trace: {ex.StackTrace}");
             }
         }
         
@@ -758,7 +758,7 @@ namespace LethalMic
         private void CalibrateNoiseFloor()
         {
             _noiseFloor = _currentMicLevel;
-            _plugin.Logger.LogInfo($"Noise floor calibrated to {_noiseFloor:F1} dB");
+            LethalMic.Logger.LogInfo($"Noise floor calibrated to {_noiseFloor:F1} dB");
         }
         
         private void RefreshPresetList()
@@ -774,7 +774,7 @@ namespace LethalMic
             }
             catch (Exception ex)
             {
-                _plugin.Logger.LogError($"Error refreshing preset list: {ex.Message}");
+                LethalMic.Logger.LogError($"Error refreshing preset list: {ex.Message}");
             }
         }
         
@@ -783,12 +783,12 @@ namespace LethalMic
             try
             {
                 // In a real implementation, this would save current settings as a preset
-                _plugin.Logger.LogInfo($"Saved current settings as preset: {presetName}");
+                LethalMic.Logger.LogInfo($"Saved current settings as preset: {presetName}");
                 RefreshPresetList();
             }
             catch (Exception ex)
             {
-                _plugin.Logger.LogError($"Error saving preset: {ex.Message}");
+                LethalMic.Logger.LogError($"Error saving preset: {ex.Message}");
             }
         }
         
@@ -797,12 +797,12 @@ namespace LethalMic
             try
             {
                 // In a real implementation, this would delete the preset file
-                _plugin.Logger.LogInfo($"Deleted preset: {presetName}");
+                LethalMic.Logger.LogInfo($"Deleted preset: {presetName}");
                 RefreshPresetList();
             }
             catch (Exception ex)
             {
-                _plugin.Logger.LogError($"Error deleting preset: {ex.Message}");
+                LethalMic.Logger.LogError($"Error deleting preset: {ex.Message}");
             }
         }
         

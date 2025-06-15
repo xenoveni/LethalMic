@@ -39,7 +39,7 @@ namespace LethalMic
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[LethalMic] Error in AudioSource.Play patch: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[LethalMic] Error in AudioSource.Play patch: {ex.Message}");
                 }
             }
         }
@@ -61,7 +61,7 @@ namespace LethalMic
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[LethalMic] Error in AudioSource.PlayOneShot patch: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[LethalMic] Error in AudioSource.PlayOneShot patch: {ex.Message}");
                 }
             }
         }
@@ -99,7 +99,7 @@ namespace LethalMic
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[LethalMic] Error in AudioListener.GetOutputData patch: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[LethalMic] Error in AudioListener.GetOutputData patch: {ex.Message}");
                 }
             }
         }
@@ -125,7 +125,7 @@ namespace LethalMic
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[LethalMic] Error in AudioListener.GetSpectrumData patch: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[LethalMic] Error in AudioListener.GetSpectrumData patch: {ex.Message}");
                 }
             }
         }
@@ -142,13 +142,13 @@ namespace LethalMic
                 {
                     if (__result != null && _pluginInstance != null)
                     {
-                        Debug.Log($"[LethalMic] Microphone started: {deviceName}, Frequency: {frequency}, Length: {lengthSec}s");
+                        UnityEngine.Debug.Log($"[LethalMic] Microphone started: {deviceName}, Frequency: {frequency}, Length: {lengthSec}s");
                         _pluginInstance.OnMicrophoneStarted(deviceName, frequency, lengthSec, __result);
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[LethalMic] Error in Microphone.Start patch: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[LethalMic] Error in Microphone.Start patch: {ex.Message}");
                 }
             }
         }
@@ -165,13 +165,13 @@ namespace LethalMic
                 {
                     if (_pluginInstance != null)
                     {
-                        Debug.Log($"[LethalMic] Microphone ended: {deviceName}");
+                        UnityEngine.Debug.Log($"[LethalMic] Microphone ended: {deviceName}");
                         _pluginInstance.OnMicrophoneEnded(deviceName);
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[LethalMic] Error in Microphone.End patch: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[LethalMic] Error in Microphone.End patch: {ex.Message}");
                 }
             }
         }
@@ -200,7 +200,7 @@ namespace LethalMic
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[LethalMic] Error in AudioClip.GetData patch: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[LethalMic] Error in AudioClip.GetData patch: {ex.Message}");
                 }
             }
         }
@@ -228,7 +228,7 @@ namespace LethalMic
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[LethalMic] Error in AudioClip.SetData patch: {ex.Message}");
+                    UnityEngine.Debug.LogError($"[LethalMic] Error in AudioClip.SetData patch: {ex.Message}");
                 }
                 
                 return true; // Continue with original method
@@ -259,7 +259,7 @@ namespace LethalMic
                     IsPlaying = true
                 };
                 
-                Debug.Log($"[LethalMic] Tracking audio source: {clipToUse.name}");
+                UnityEngine.Debug.Log($"[LethalMic] Tracking audio source: {clipToUse.name}");
             }
         }
         

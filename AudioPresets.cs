@@ -65,6 +65,11 @@ namespace LethalMic
             InitializePresets();
         }
         
+        public static void Initialize()
+        {
+            InitializePresets();
+        }
+        
         private static void InitializePresets()
         {
             try

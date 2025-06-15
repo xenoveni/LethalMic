@@ -301,6 +301,7 @@ namespace LethalMic
         // Additional methods for UI integration
         private bool _lastVoiceDetected = false;
         private float _currentNoiseFloor = -50f;
+        private float _currentLevel = -60f;
         
         public bool IsVoiceDetected()
         {
@@ -312,6 +313,11 @@ namespace LethalMic
             return _currentNoiseFloor;
         }
         
+        public float GetCurrentLevel()
+        {
+            return _currentLevel;
+        }
+        
         private void UpdateVoiceActivityStatus(bool isVoiceDetected)
         {
             _lastVoiceDetected = isVoiceDetected;
@@ -320,6 +326,18 @@ namespace LethalMic
         private void UpdateNoiseFloor(float noiseFloor)
         {
             _currentNoiseFloor = noiseFloor;
+        }
+        
+        private void UpdateCurrentLevel(float level)
+        {
+            _currentLevel = level;
+        }
+        
+        public void Update()
+        {
+            // Update voice activity detection and noise floor periodically
+            // These are called internally during audio processing
+            // No periodic updates needed for now
         }
     }
 }
