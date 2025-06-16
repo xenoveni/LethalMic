@@ -1,44 +1,29 @@
 using GameNetcodeStuff;
 using HarmonyLib;
 using UnityEngine;
+using System;
+// Input handling now managed by LethalMicInputActions
 
 namespace LethalMic.Patches;
 
 public class PlayerControllerPatch
 {
-    private static bool _isUIVisible = false;
-    private static LethalMicUI _uiComponent;
-
+    // Input handling now managed by LethalMicInputActions
+    // This patch can be used for other PlayerControllerB functionality if needed
+    
     [HarmonyPatch(typeof(PlayerControllerB), "Update")]
     [HarmonyPostfix]
-    private static void UpdateHandleF8Key(PlayerControllerB __instance)
+    private static void UpdatePatch(PlayerControllerB __instance)
     {
-        if (!__instance.isPlayerControlled || !__instance.IsOwner)
+        // Placeholder for future PlayerControllerB patches
+        // Input handling is now done through LethalMicInputActions
+        try
         {
-            return;
+            // Any other PlayerControllerB update logic can go here
         }
-
-        if (Input.GetKeyDown(KeyCode.F8))
+        catch (Exception ex)
         {
-            ToggleUI();
+            LethalMic.GetLogger()?.LogError($"[PATCH] Error in PlayerControllerB patch: {ex}");
         }
     }
-
-    private static void ToggleUI()
-    {
-        if (_uiComponent == null)
-        {
-            var uiSystem = GameObject.Find("LethalMicUI");
-            if (uiSystem != null)
-            {
-                _uiComponent = uiSystem.GetComponent<LethalMicUI>();
-            }
-        }
-
-        if (_uiComponent != null)
-        {
-            _isUIVisible = !_isUIVisible;
-            _uiComponent.ToggleVisibility();
-        }
-    }
-} 
+}

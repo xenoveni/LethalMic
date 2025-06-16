@@ -9,6 +9,7 @@ using HarmonyLib;
 using UnityEngine;
 using UnityEngine.Audio;
 using GameNetcodeStuff;
+using static LethalMic.PluginInfo;
 
 namespace LethalMic
 {
@@ -20,8 +21,10 @@ namespace LethalMic
     public class LethalMicHarmonyOnly : BaseUnityPlugin
     {
         public static new ManualLogSource Logger;
-        private static Harmony HarmonyInstance;
+        private static Harmony harmony;
         private static ConfigFile ConfigFile;
+        private static GameObject uiObject;
+        public static LethalMicUI uiComponent;
         
         void Awake()
         {
@@ -36,9 +39,12 @@ namespace LethalMic
                 // Initialize static systems
                 StaticAudioManager.Initialize(Logger, ConfigFile);
                 
+                // Initialize UI
+                InitializeUI();
+                
                 // Apply Harmony patches
-                HarmonyInstance = new Harmony(PluginInfo.PLUGIN_GUID + ".HarmonyOnly");
-                HarmonyInstance.PatchAll();
+                harmony = new Harmony(PluginInfo.PLUGIN_GUID + ".HarmonyOnly");
+                harmony.PatchAll();
                 
                 Logger.LogInfo("[HARMONY-ONLY] Successfully initialized with Harmony patches");
             }
@@ -48,176 +54,46 @@ namespace LethalMic
             }
         }
         
+        private void InitializeUI()
+        {
+            try
+            {
+                Logger.LogInfo("[HARMONY-ONLY] Initializing UI...");
+                
+                // Create UI GameObject
+                uiObject = new GameObject("LethalMicUI");
+                uiObject.hideFlags = HideFlags.HideAndDontSave;
+                UnityEngine.Object.DontDestroyOnLoad(uiObject);
+                
+                // Add UI component
+                uiComponent = uiObject.AddComponent<LethalMicUI>();
+                uiComponent.Initialize(Logger, ConfigFile);
+                
+                // Ensure UI stays active
+                uiObject.SetActive(true);
+                
+                Logger.LogInfo("[HARMONY-ONLY] UI initialized successfully");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"[HARMONY-ONLY] Failed to initialize UI: {ex}");
+            }
+        }
+        
         void OnDestroy()
         {
             Logger?.LogInfo("[HARMONY-ONLY] Plugin being destroyed - cleaning up...");
+            
+            // Clean up UI
+            if (uiObject != null)
+            {
+                UnityEngine.Object.Destroy(uiObject);
+                uiObject = null;
+                uiComponent = null;
+            }
+            
             StaticAudioManager.Cleanup();
-            HarmonyInstance?.UnpatchSelf();
-        }
-    }
-    
-    /// <summary>
-    /// Static audio manager that doesn't rely on MonoBehaviour lifecycle
-    /// </summary>
-    public static class StaticAudioManager
-    {
-        private static ManualLogSource Logger;
-        private static ConfigFile ConfigFile;
-        private static bool IsInitialized = false;
-        
-        // Configuration
-        private static ConfigEntry<bool> EnableMod;
-        private static ConfigEntry<float> MicrophoneGain;
-        private static ConfigEntry<string> InputDevice;
-        private static ConfigEntry<bool> NoiseGate;
-        private static ConfigEntry<float> NoiseGateThreshold;
-        
-        // Audio processing
-        private static AudioClip microphoneClip;
-        private static string selectedDevice;
-        private static bool isRecording = false;
-        
-        public static void Initialize(ManualLogSource logger, ConfigFile configFile)
-        {
-            if (IsInitialized)
-            {
-                logger.LogWarning("[STATIC] StaticAudioManager already initialized");
-                return;
-            }
-            
-            Logger = logger;
-            ConfigFile = configFile;
-            
-            Logger.LogInfo("[STATIC] Initializing StaticAudioManager...");
-            
-            try
-            {
-                // Initialize configuration
-                InitializeConfig();
-                
-                // Initialize audio systems
-                InitializeAudio();
-                
-                IsInitialized = true;
-                Logger.LogInfo("[STATIC] StaticAudioManager initialized successfully");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"[STATIC] Failed to initialize StaticAudioManager: {ex}");
-            }
-        }
-        
-        private static void InitializeConfig()
-        {
-            EnableMod = ConfigFile.Bind("General", "EnableMod", true, "Enable/disable the LethalMic mod");
-            MicrophoneGain = ConfigFile.Bind("Audio", "MicrophoneGain", 1.0f, "Microphone input gain (0.0 to 5.0)");
-            InputDevice = ConfigFile.Bind("Audio", "InputDevice", "", "Preferred input device (empty for default)");
-            NoiseGate = ConfigFile.Bind("Audio", "NoiseGate", true, "Enable noise gate");
-            NoiseGateThreshold = ConfigFile.Bind("Audio", "NoiseGateThreshold", 0.01f, "Noise gate threshold (0.0 to 1.0)");
-            
-            Logger.LogInfo($"[STATIC] Configuration loaded - Enabled: {EnableMod.Value}, Gain: {MicrophoneGain.Value}");
-        }
-        
-        private static void InitializeAudio()
-        {
-            if (!EnableMod.Value)
-            {
-                Logger.LogInfo("[STATIC] Mod disabled in configuration");
-                return;
-            }
-            
-            try
-            {
-                // Get available microphones
-                var devices = Microphone.devices;
-                Logger.LogInfo($"[STATIC] Found {devices.Length} microphone devices");
-                
-                foreach (var device in devices)
-                {
-                    Logger.LogInfo($"[STATIC] Available device: {device}");
-                }
-                
-                // Select device
-                selectedDevice = string.IsNullOrEmpty(InputDevice.Value) ? null : InputDevice.Value;
-                Logger.LogInfo($"[STATIC] Selected device: {selectedDevice ?? "default"}");
-                
-                // Test microphone access
-                if (devices.Length > 0)
-                {
-                    Logger.LogInfo("[STATIC] Audio system ready");
-                }
-                else
-                {
-                    Logger.LogWarning("[STATIC] No microphone devices found");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"[STATIC] Failed to initialize audio: {ex}");
-            }
-        }
-        
-        public static void StartRecording()
-        {
-            if (!IsInitialized || !EnableMod.Value || isRecording)
-                return;
-                
-            try
-            {
-                Logger.LogInfo("[STATIC] Starting microphone recording...");
-                
-                // Start microphone recording
-                microphoneClip = Microphone.Start(selectedDevice, true, 10, 44100);
-                isRecording = true;
-                
-                Logger.LogInfo("[STATIC] Microphone recording started");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"[STATIC] Failed to start recording: {ex}");
-            }
-        }
-        
-        public static void StopRecording()
-        {
-            if (!isRecording)
-                return;
-                
-            try
-            {
-                Logger.LogInfo("[STATIC] Stopping microphone recording...");
-                
-                Microphone.End(selectedDevice);
-                isRecording = false;
-                
-                if (microphoneClip != null)
-                {
-                    UnityEngine.Object.Destroy(microphoneClip);
-                    microphoneClip = null;
-                }
-                
-                Logger.LogInfo("[STATIC] Microphone recording stopped");
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"[STATIC] Failed to stop recording: {ex}");
-            }
-        }
-        
-        public static void Cleanup()
-        {
-            Logger?.LogInfo("[STATIC] Cleaning up StaticAudioManager...");
-            
-            try
-            {
-                StopRecording();
-                IsInitialized = false;
-                Logger?.LogInfo("[STATIC] StaticAudioManager cleaned up");
-            }
-            catch (Exception ex)
-            {
-                Logger?.LogError($"[STATIC] Error during cleanup: {ex}");
-            }
+            harmony?.UnpatchSelf();
         }
     }
     
@@ -228,6 +104,7 @@ namespace LethalMic
     public static class GamePatches
     {
         private static ManualLogSource Logger => LethalMicHarmonyOnly.Logger;
+        private static LethalMicUI UI => LethalMicHarmonyOnly.uiComponent;
         
         /// <summary>
         /// Patch game start to initialize our systems
@@ -280,6 +157,24 @@ namespace LethalMic
             {
                 // Add our audio processing logic here
                 // This runs every frame for the local player
+            }
+            catch (Exception ex)
+            {
+                Logger?.LogError($"[PATCH] Error in PlayerControllerB.Update patch: {ex}");
+            }
+        }
+        
+        /// <summary>
+        /// Patch player controller to handle F8 key
+        /// </summary>
+        [HarmonyPatch(typeof(PlayerControllerB), "Update")]
+        [HarmonyPostfix]
+        public static void PlayerControllerB_Update_Postfix_F8(PlayerControllerB __instance)
+        {
+            try
+            {
+                // Input handling now managed by LethalMicInputActions
+                // This legacy input handling is no longer needed
             }
             catch (Exception ex)
             {

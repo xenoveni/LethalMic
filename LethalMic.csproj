@@ -17,11 +17,13 @@
   <ItemGroup>
     <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
     <PackageReference Include="BepInEx.Core" Version="5.*" />
+    <PackageReference Include="NAudio.WinForms" Version="2.2.1" NoWarn="NU1701" />
     <PackageReference Include="UnityEngine.Modules" Version="2022.3.9" IncludeAssets="compile" />
-    <PackageReference Include="NAudio" Version="2.2.1" />
-    <PackageReference Include="NAudio.WinForms" Version="2.2.1" />
+    <PackageReference Include="Unity.InputSystem" Version="1.5.0" IncludeAssets="compile" />
+    <PackageReference Include="Rune580.Mods.LethalCompany.InputUtils" Version="0.7.10" />
+    <PackageReference Include="NAudio" Version="2.2.1" NoWarn="NU1701" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="SIPSorcery" Version="6.0.4" />
+    <PackageReference Include="SIPSorcery" Version="8.0.3" />
   </ItemGroup>
   
   <ItemGroup>
@@ -37,6 +39,7 @@
       <HintPath>lib\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+
     <Reference Include="Unity.Netcode.Runtime">
       <HintPath>lib\Unity.Netcode.Runtime.dll</HintPath>
       <Private>False</Private>

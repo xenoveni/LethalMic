@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.Audio;
 using GameNetcodeStuff;
 using UnityEngine.SceneManagement;
+using static LethalMic.PluginInfo;
 
 namespace LethalMic
 {
@@ -18,10 +19,10 @@ namespace LethalMic
     /// This version uses static classes and Harmony patches to avoid destruction issues
     /// </summary>
     [BepInPlugin(PluginInfo.PLUGIN_GUID + ".Static", PluginInfo.PLUGIN_NAME + " (Static)", PluginInfo.PLUGIN_VERSION)]
-    public class LethalMicStatic
+    public class LethalMicStatic : BaseUnityPlugin
     {
         // Static references
-        private static ManualLogSource Logger;
+        private static new ManualLogSource Logger;  // Use 'new' to explicitly hide base Logger
         private static Harmony HarmonyInstance;
         private static ConfigFile ConfigFile;
         private static bool IsInitialized = false;
@@ -47,63 +48,61 @@ namespace LethalMic
         private static ConfigEntry<float> NoiseGateThreshold;
         private static ConfigEntry<bool> DebugLogging;
         
-        // Static constructor - called when the class is first accessed
-        static LethalMicStatic()
+        // UI
+        private static GameObject uiObject;
+        private static LethalMicUI uiInstance;
+        
+        // Override Awake from BaseUnityPlugin
+        private void Awake()
         {
             try
             {
-                Logger = BepInEx.Logging.Logger.CreateLogSource("LethalMicStatic");
-                LogDiagnostic("Static constructor called", LogLevel.Info);
-                LogDiagnostic($"Assembly location: {Assembly.GetExecutingAssembly().Location}", LogLevel.Debug);
-                LogDiagnostic($"Unity version: {Application.unityVersion}", LogLevel.Debug);
-                LogDiagnostic($"Game version: {Application.version}", LogLevel.Debug);
+                // Initialize logger first
+                Logger = BepInEx.Logging.Logger.CreateLogSource("LethalMic");
+                if (Logger == null)
+                {
+                    UnityEngine.Debug.LogError("[LethalMic] Failed to create logger!");
+                    return;
+                }
+
+                LogDiagnostic("Initializing LethalMic static class...", BepInEx.Logging.LogLevel.Info);
                 
                 // Initialize configuration
-                ConfigFile = new ConfigFile(Path.Combine(Paths.ConfigPath, PluginInfo.PLUGIN_GUID + ".cfg"), true);
-                InitializeConfig();
+                ConfigFile = Config;  // Use the base class Config property
                 
-                // Apply Harmony patches
-                HarmonyInstance = new Harmony(PluginInfo.PLUGIN_GUID + ".Static");
-                LogDiagnostic("Applying Harmony patches...", LogLevel.Debug);
-                HarmonyInstance.PatchAll();
-                LogDiagnostic("Harmony patches applied successfully", LogLevel.Debug);
-                
-                // Initialize audio system
-                InitializeAudio();
-                
-                IsInitialized = true;
-                LogDiagnostic("Successfully initialized with static implementation", LogLevel.Info);
-                LogDiagnostic($"Initialization completed at {DateTime.Now}", LogLevel.Debug);
-            }
-            catch (Exception ex)
-            {
-                LogDiagnostic($"Failed to initialize: {ex}", LogLevel.Error);
-                LogDiagnostic($"Stack trace: {ex.StackTrace}", LogLevel.Error);
-                errorCount++;
-            }
-        }
-        
-        private static void InitializeConfig()
-        {
-            try
-            {
-                LogDiagnostic("Initializing configuration...", LogLevel.Debug);
-                
+                // Load settings
                 EnableMod = ConfigFile.Bind("General", "EnableMod", true, "Enable/disable the LethalMic mod");
                 MicrophoneGain = ConfigFile.Bind("Audio", "MicrophoneGain", 1.0f, "Microphone input gain (0.0 to 5.0)");
                 InputDevice = ConfigFile.Bind("Audio", "InputDevice", "", "Preferred input device (empty for default)");
                 NoiseGate = ConfigFile.Bind("Audio", "NoiseGate", true, "Enable noise gate");
                 NoiseGateThreshold = ConfigFile.Bind("Audio", "NoiseGateThreshold", 0.01f, "Noise gate threshold (0.0 to 1.0)");
-                DebugLogging = ConfigFile.Bind("Debug", "EnableDebugLogging", true, "Enable detailed debug logging");
+                DebugLogging = ConfigFile.Bind("Debug", "DebugLogging", false, "Enable debug logging");
                 
-                LogDiagnostic($"Configuration loaded - Enabled: {EnableMod.Value}, Gain: {MicrophoneGain.Value}", LogLevel.Info);
-                LogDiagnostic($"Debug logging: {DebugLogging.Value}", LogLevel.Debug);
+                LogDiagnostic($"Configuration loaded - Enabled: {EnableMod.Value}, Gain: {MicrophoneGain.Value}", BepInEx.Logging.LogLevel.Info);
+                
+                // Initialize audio system
+                InitializeAudio();
+                
+                // Apply Harmony patches
+                HarmonyInstance = new Harmony("com.xenoveni.lethalmic");
+                LogDiagnostic("Applying Harmony patches...", BepInEx.Logging.LogLevel.Debug);
+                HarmonyInstance.PatchAll();
+                LogDiagnostic("Harmony patches applied successfully", BepInEx.Logging.LogLevel.Debug);
+                
+                // Initialize UI
+                InitializeUI();
+                
+                IsInitialized = true;
+                LogDiagnostic("Successfully initialized with static implementation", BepInEx.Logging.LogLevel.Info);
+                LogDiagnostic($"Initialization completed at {DateTime.Now}", BepInEx.Logging.LogLevel.Debug);
             }
             catch (Exception ex)
             {
-                LogDiagnostic($"Failed to initialize configuration: {ex}", LogLevel.Error);
-                LogDiagnostic($"Stack trace: {ex.StackTrace}", LogLevel.Error);
-                errorCount++;
+                UnityEngine.Debug.LogError($"[LethalMic] Error in Awake: {ex}");
+                if (Logger != null)
+                {
+                    Logger.LogError($"Error in Awake: {ex}");
+                }
             }
         }
         
@@ -111,67 +110,139 @@ namespace LethalMic
         {
             if (!EnableMod.Value)
             {
-                LogDiagnostic("Mod disabled in configuration", LogLevel.Info);
+                LogDiagnostic("Mod disabled in configuration", BepInEx.Logging.LogLevel.Info);
                 return;
             }
             
             try
             {
-                LogDiagnostic("Initializing audio system...", LogLevel.Debug);
+                LogDiagnostic("Initializing audio system...", BepInEx.Logging.LogLevel.Debug);
                 
                 // Get available microphones
                 var devices = Microphone.devices;
-                LogDiagnostic($"Found {devices.Length} microphone devices", LogLevel.Info);
+                LogDiagnostic($"Found {devices.Length} microphone devices", BepInEx.Logging.LogLevel.Info);
                 
                 foreach (var device in devices)
                 {
-                    LogDiagnostic($"Available device: {device}", LogLevel.Debug);
+                    LogDiagnostic($"Available device: {device}", BepInEx.Logging.LogLevel.Debug);
                 }
                 
                 // Select device
                 selectedDevice = string.IsNullOrEmpty(InputDevice.Value) ? null : InputDevice.Value;
-                LogDiagnostic($"Selected device: {selectedDevice ?? "default"}", LogLevel.Info);
+                LogDiagnostic($"Selected device: {selectedDevice ?? "default"}", BepInEx.Logging.LogLevel.Info);
                 
                 // Test microphone access
                 if (devices.Length > 0)
                 {
-                    LogDiagnostic("Audio system ready", LogLevel.Info);
-                    LogDiagnostic($"Sample rate: {AudioSettings.outputSampleRate}Hz", LogLevel.Debug);
-                    LogDiagnostic($"Speaker mode: {AudioSettings.speakerMode}", LogLevel.Debug);
+                    LogDiagnostic("Audio system ready", BepInEx.Logging.LogLevel.Info);
+                    LogDiagnostic($"Sample rate: {AudioSettings.outputSampleRate}Hz", BepInEx.Logging.LogLevel.Debug);
+                    LogDiagnostic($"Speaker mode: {AudioSettings.speakerMode}", BepInEx.Logging.LogLevel.Debug);
                 }
                 else
                 {
-                    LogDiagnostic("No microphone devices found", LogLevel.Warning);
+                    LogDiagnostic("No microphone devices found", BepInEx.Logging.LogLevel.Warning);
                 }
             }
             catch (Exception ex)
             {
-                LogDiagnostic($"Failed to initialize audio: {ex}", LogLevel.Error);
-                LogDiagnostic($"Stack trace: {ex.StackTrace}", LogLevel.Error);
+                LogDiagnostic($"Failed to initialize audio: {ex}", BepInEx.Logging.LogLevel.Error);
+                LogDiagnostic($"Stack trace: {ex.StackTrace}", BepInEx.Logging.LogLevel.Error);
                 errorCount++;
             }
         }
         
-        // Enhanced logging method with rate limiting and debug control
-        private static void LogDiagnostic(string message, LogLevel level = LogLevel.Info)
+        private static void InitializeUI()
         {
-            if (!DebugLogging.Value && level == LogLevel.Debug)
-                return;
+            try
+            {
+                Logger.LogInfo("Initializing UI...");
                 
-            var now = DateTime.Now;
-            if ((now - LastLogTime).TotalSeconds < 1)
+                // Create UI GameObject
+                uiObject = new GameObject("LethalMicUI");
+                uiObject.hideFlags = HideFlags.HideAndDontSave;
+                UnityEngine.Object.DontDestroyOnLoad(uiObject);
+                
+                // Add UI component
+                uiInstance = uiObject.AddComponent<LethalMicUI>();
+                uiInstance.Initialize(Logger, ConfigFile);
+                
+                // Ensure UI stays active
+                uiObject.SetActive(true);
+                
+                Logger.LogInfo("UI initialized successfully");
+            }
+            catch (Exception ex)
             {
-                LogCounter++;
-                if (LogCounter > 10)
+                Logger.LogError($"Failed to initialize UI: {ex}");
+            }
+        }
+        
+        public static void ToggleUI()
+        {
+            try
+            {
+                LogDiagnostic("=== UI Toggle Requested ===", BepInEx.Logging.LogLevel.Info);
+                
+                if (uiInstance == null)
+                {
+                    LogDiagnostic("UI instance is null, attempting to initialize", BepInEx.Logging.LogLevel.Warning);
+                    InitializeUI();
+                }
+                
+                if (uiInstance != null)
+                {
+                    LogDiagnostic($"Current UI visibility: {uiInstance.IsVisible}", BepInEx.Logging.LogLevel.Info);
+                    uiInstance.ToggleVisibility();
+                    LogDiagnostic($"New UI visibility: {uiInstance.IsVisible}", BepInEx.Logging.LogLevel.Info);
+                }
+                else
+                {
+                    LogDiagnostic("Failed to initialize UI instance", BepInEx.Logging.LogLevel.Error);
+                }
+                
+                LogDiagnostic("=== UI Toggle Completed ===", BepInEx.Logging.LogLevel.Info);
+            }
+            catch (Exception ex)
+            {
+                LogDiagnostic($"Error toggling UI: {ex}", BepInEx.Logging.LogLevel.Error);
+                LogDiagnostic($"Stack trace: {ex.StackTrace}", BepInEx.Logging.LogLevel.Error);
+            }
+        }
+        
+        // Enhanced logging method with rate limiting and debug control
+        private static void LogDiagnostic(string message, BepInEx.Logging.LogLevel level = BepInEx.Logging.LogLevel.Info)
+        {
+            try
+            {
+                if (Logger == null)
+                {
+                    UnityEngine.Debug.Log($"[LethalMic] {message}");
                     return;
+                }
+
+                // Only check DebugLogging if it's not null and we're logging debug messages
+                if (level == BepInEx.Logging.LogLevel.Debug && DebugLogging != null && !DebugLogging.Value)
+                    return;
+
+                var now = DateTime.Now;
+                if ((now - LastLogTime).TotalMilliseconds < 100) // Rate limit to 10 logs per second
+                {
+                    LogCounter++;
+                    if (LogCounter > 100) // If we're logging too much, skip
+                        return;
+                }
+                else
+                {
+                    LogCounter = 0;
+                    LastLogTime = now;
+                }
+
+                Logger.Log(level, $"[{now:HH:mm:ss.fff}] {message}");
             }
-            else
+            catch (Exception ex)
             {
-                LogCounter = 0;
-                LastLogTime = now;
+                UnityEngine.Debug.LogError($"[LethalMic] Error in LogDiagnostic: {ex}");
             }
-            
-            Logger.Log(level, $"[STATIC] {message}");
         }
         
         // Harmony patches for game lifecycle events
@@ -286,5 +357,31 @@ namespace LethalMic
         public static float GetCPUUsage() => cpuUsage;
         public static int GetErrorCount() => errorCount;
         public static int GetAudioFrameCount() => audioFrameCount;
+
+        public static bool IsUIVisible()
+        {
+            return uiInstance != null && uiInstance.IsVisible;
+        }
+
+        public static void Cleanup()
+        {
+            try
+            {
+                Logger.LogInfo("Cleaning up LethalMicStatic...");
+                
+                // Cleanup UI
+                if (uiInstance != null)
+                {
+                    UnityEngine.Object.Destroy(uiInstance.gameObject);
+                    uiInstance = null;
+                }
+                
+                Logger.LogInfo("LethalMicStatic cleaned up");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error during cleanup: {ex}");
+            }
+        }
     }
-} 
+}
