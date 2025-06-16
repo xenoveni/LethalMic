@@ -18,8 +18,8 @@ namespace LethalMic
     /// Static implementation of LethalMic that doesn't rely on MonoBehaviour lifecycle
     /// This version uses static classes and Harmony patches to avoid destruction issues
     /// </summary>
-    [BepInPlugin(PluginInfo.PLUGIN_GUID + ".Static", PluginInfo.PLUGIN_NAME + " (Static)", PluginInfo.PLUGIN_VERSION)]
-    public class LethalMicStatic : BaseUnityPlugin
+    // [BepInPlugin(PluginInfo.PLUGIN_GUID + ".Static", PluginInfo.PLUGIN_NAME + " (Static)", PluginInfo.PLUGIN_VERSION)]
+    public class LethalMicStatic_DISABLED : BaseUnityPlugin
     {
         // Static references
         private static new ManualLogSource Logger;  // Use 'new' to explicitly hide base Logger

@@ -17,8 +17,8 @@ namespace LethalMic
     /// Harmony-only implementation that avoids BaseUnityPlugin lifecycle issues
     /// This approach uses static classes and minimal GameObject dependencies
     /// </summary>
-    [BepInPlugin(PluginInfo.PLUGIN_GUID + ".HarmonyOnly", PluginInfo.PLUGIN_NAME + " (Harmony Only)", PluginInfo.PLUGIN_VERSION)]
-    public class LethalMicHarmonyOnly : BaseUnityPlugin
+    // [BepInPlugin(PluginInfo.PLUGIN_GUID + ".HarmonyOnly", PluginInfo.PLUGIN_NAME + " (Harmony Only)", PluginInfo.PLUGIN_VERSION)]
+    public class LethalMicHarmonyOnly_DISABLED : BaseUnityPlugin
     {
         public static new ManualLogSource Logger;
         private static Harmony harmony;
@@ -103,8 +103,8 @@ namespace LethalMic
     [HarmonyPatch]
     public static class GamePatches
     {
-        private static ManualLogSource Logger => LethalMicHarmonyOnly.Logger;
-        private static LethalMicUI UI => LethalMicHarmonyOnly.uiComponent;
+        private static ManualLogSource Logger => LethalMicHarmonyOnly_DISABLED.Logger;
+        private static LethalMicUI UI => LethalMicHarmonyOnly_DISABLED.uiComponent;
         
         /// <summary>
         /// Patch game start to initialize our systems
