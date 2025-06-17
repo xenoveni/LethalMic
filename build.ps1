@@ -44,6 +44,10 @@ Copy-Item "src/plugins/LethalMic/icon.png" -Destination "build/plugins/" -Force
 Write-Host "Copying manifest.json..."
 Copy-Item "src/plugins/LethalMic/manifest.json" -Destination "build/plugins/manifest.json" -Force
 
+# Copy README.md to build output
+Write-Host "Copying README.md..."
+Copy-Item "README.md" -Destination "build/plugins/" -Force
+
 # Copy Resources directory if it exists
 if (Test-Path "src/plugins/LethalMic/Resources") {
     Write-Host "Copying Resources directory..."
