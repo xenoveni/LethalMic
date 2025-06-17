@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="UnityEngine.UIElements" xsi:noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" xsi:schemaLocation="UnityEngine.UIElements ../../../UIElementsSchema/UnityEngine.UIElements.xsd">
+    <Style src="LethalMicStyles.uss" />
+    <VisualElement name="root" class="root">
+        <VisualElement name="header" class="header">
+            <Label text="LethalMic Settings" class="title" />
+            <Button name="close-button" text="X" class="close-button" />
+        </VisualElement>
+        <ScrollView name="content" class="content">
+            <VisualElement name="device-section" class="section">
+                <Label text="Input Device" class="section-title" />
+                <TextField name="device-field" label="Device" class="device-field" />
+                <Button name="refresh-devices" text="Refresh Devices" class="button" />
+            </VisualElement>
+            <VisualElement name="gain-section" class="section">
+                <Label text="Microphone Gain" class="section-title" />
+                <Slider name="gain-slider" low-value="0" high-value="100" value="50" class="slider" />
+                <Label name="gain-value" text="50%" class="value-label" />
+            </VisualElement>
+            <VisualElement name="noise-gate-section" class="section">
+                <Label text="Noise Gate" class="section-title" />
+                <Toggle name="noise-gate-toggle" label="Enable Noise Gate" class="toggle" />
+                <Slider name="noise-gate-slider" low-value="-60" high-value="0" value="-30" class="slider" />
+                <Label name="noise-gate-value" text="-30 dB" class="value-label" />
+            </VisualElement>
+            <VisualElement name="calibration-section" class="section">
+                <Label text="Calibration" class="section-title" />
+                <Button name="calibrate-button" text="Calibrate Microphone" class="button" />
+                <Label name="calibration-status" text="Not calibrated" class="status-label" />
+            </VisualElement>
+            <VisualElement name="presets-section" class="section">
+                <Label text="Presets" class="section-title" />
+                <DropdownField name="preset-dropdown" label="Select Preset" class="dropdown" />
+                <VisualElement name="preset-buttons" class="button-group">
+                    <Button name="save-preset-button" text="Save Preset" class="button" />
+                    <Button name="load-preset-button" text="Load Preset" class="button" />
+                </VisualElement>
+            </VisualElement>
+        </ScrollView>
+        <VisualElement name="footer" class="footer">
+            <Label name="status-text" text="Ready" class="status-text" />
+        </VisualElement>
+    </VisualElement>
+</UXML> 

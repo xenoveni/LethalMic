@@ -1,0 +1,187 @@
+.root {
+    width: 400px;
+    height: 600px;
+    background-color: rgb(40, 40, 40);
+    border-radius: 8px;
+    padding: 16px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(60, 60, 60);
+}
+
+.title {
+    font-size: 20px;
+    font-weight: bold;
+    color: rgb(255, 255, 255);
+}
+
+.close-button {
+    width: 24px;
+    height: 24px;
+    border-radius: 12px;
+    background-color: rgb(60, 60, 60);
+    color: rgb(255, 255, 255);
+    font-size: 14px;
+    padding: 0;
+}
+
+.close-button:hover {
+    background-color: rgb(80, 80, 80);
+}
+
+.content {
+    flex-grow: 1;
+    margin: 0 -16px;
+    padding: 0 16px;
+}
+
+.section {
+    margin-bottom: 24px;
+    padding: 16px;
+    background-color: rgb(50, 50, 50);
+    border-radius: 6px;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: rgb(255, 255, 255);
+    margin-bottom: 12px;
+}
+
+.device-field {
+    margin-bottom: 8px;
+}
+
+.button {
+    background-color: rgb(0, 120, 215);
+    color: rgb(255, 255, 255);
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin: 4px 0;
+}
+
+.button:hover {
+    background-color: rgb(0, 140, 235);
+}
+
+.button:active {
+    background-color: rgb(0, 100, 195);
+}
+
+.slider {
+    margin: 8px 0;
+}
+
+.value-label {
+    font-size: 14px;
+    color: rgb(200, 200, 200);
+    margin-top: 4px;
+}
+
+.toggle {
+    margin: 8px 0;
+}
+
+.status-label {
+    font-size: 14px;
+    color: rgb(200, 200, 200);
+    margin-top: 8px;
+}
+
+.dropdown {
+    margin-bottom: 8px;
+}
+
+.button-group {
+    flex-direction: row;
+    gap: 8px;
+}
+
+.footer {
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top-width: 1px;
+    border-top-color: rgb(60, 60, 60);
+}
+
+.status-text {
+    font-size: 14px;
+    color: rgb(200, 200, 200);
+}
+
+/* Input field styles */
+TextField {
+    background-color: rgb(30, 30, 30);
+    border-width: 1px;
+    border-color: rgb(60, 60, 60);
+    border-radius: 4px;
+    padding: 8px;
+    color: rgb(255, 255, 255);
+}
+
+TextField:focus {
+    border-color: rgb(0, 120, 215);
+}
+
+/* Slider styles */
+Slider {
+    height: 20px;
+}
+
+Slider .unity-base-slider__dragger {
+    background-color: rgb(0, 120, 215);
+    border-radius: 10px;
+    width: 20px;
+    height: 20px;
+}
+
+Slider .unity-base-slider__tracker {
+    background-color: rgb(60, 60, 60);
+    border-radius: 2px;
+    height: 4px;
+}
+
+/* Toggle styles */
+Toggle {
+    margin: 8px 0;
+}
+
+Toggle .unity-toggle__checkmark {
+    background-color: rgb(30, 30, 30);
+    border-width: 1px;
+    border-color: rgb(60, 60, 60);
+    border-radius: 2px;
+}
+
+Toggle:checked .unity-toggle__checkmark {
+    background-color: rgb(0, 120, 215);
+    border-color: rgb(0, 120, 215);
+}
+
+/* Dropdown styles */
+DropdownField {
+    background-color: rgb(30, 30, 30);
+    border-width: 1px;
+    border-color: rgb(60, 60, 60);
+    border-radius: 4px;
+    padding: 8px;
+    color: rgb(255, 255, 255);
+}
+
+DropdownField:focus {
+    border-color: rgb(0, 120, 215);
+} 
