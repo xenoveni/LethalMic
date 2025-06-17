@@ -71,6 +71,15 @@ namespace LethalMic.UI.Components
         private string _lastLoggedStatus = null;
         private float _lastUILogTime = 0f;
         private float _uiLogInterval = 1.0f;
+        private float _levelChangeThreshold = 0.2f;  // 20% change threshold
+        private float _dbChangeThreshold = 5f;       // 5dB change threshold
+        private float _cpuChangeThreshold = 10f;     // 10% CPU change threshold
+        
+        // Add new UI element fields
+        private UIToggle _compressionToggle;
+        private UISlider _compressionRatioSlider;
+        private UISlider _attackTimeSlider;
+        private UISlider _releaseTimeSlider;
         
         public bool IsVisible => _isVisible;
         
@@ -269,10 +278,12 @@ namespace LethalMic.UI.Components
             dropdownRect.pivot = new Vector2(0.5f, 0.5f);
             dropdownRect.anchoredPosition = new Vector2(0, -120);
             dropdownRect.sizeDelta = new Vector2(350, 40);
+            
             // Populate devices
             var devices = Microphone.devices;
             _deviceDropdown.ClearOptions();
             _deviceDropdown.AddOptions(new List<string>(devices));
+            
             // Set current device
             string currentDevice = LethalMic.LethalMicStatic.GetInputDevice();
             int idx = Array.IndexOf(devices, currentDevice);
@@ -281,10 +292,55 @@ namespace LethalMic.UI.Components
                 LethalMic.LethalMicStatic.SetInputDevice(devices[i]);
                 LogThrottled($"[UI] Input device changed: {devices[i]}");
             });
-            CreateSlider("Gain", new Vector2(0, -150), 0.1f, 10f, _config != null ? _config.Bind("Audio", "Gain", 1.0f, "Microphone gain").Value : 1f, OnGainChanged, out _gainSlider, parent);
-            CreateSlider("Threshold", new Vector2(0, -200), 0f, 1f, _config != null ? _config.Bind("Audio", "Threshold", 0.1f, "Voice activation threshold").Value : 0.1f, OnThresholdChanged, out _thresholdSlider, parent);
-            CreateToggle("Noise Gate", new Vector2(0, -250), _config != null ? _config.Bind("Audio", "NoiseGate", true, "Enable noise gate").Value : true, OnNoiseGateChanged, out _noiseGateToggle, parent);
-            CreateButton("Calibrate", new Vector2(0, -300), new Vector2(120, 30), OnCalibrateClicked, out _calibrateButton, parent);
+
+            // Create settings controls with proper spacing
+            float yOffset = -150;
+            float spacing = 50;
+
+            // Gain slider (0.1 to 10.0)
+            CreateSlider("Gain", new Vector2(0, yOffset), 0.1f, 10f, 
+                _config != null ? _config.Bind("Audio", "Gain", 1.0f, "Microphone gain").Value : 1f, 
+                OnGainChanged, out _gainSlider, parent);
+            yOffset -= spacing;
+
+            // Threshold slider (0 to 1.0)
+            CreateSlider("Threshold", new Vector2(0, yOffset), 0f, 1f, 
+                _config != null ? _config.Bind("Audio", "Threshold", 0.1f, "Voice activation threshold").Value : 0.1f, 
+                OnThresholdChanged, out _thresholdSlider, parent);
+            yOffset -= spacing;
+
+            // Noise Gate toggle
+            CreateToggle("Noise Gate", new Vector2(0, yOffset), 
+                _config != null ? _config.Bind("Audio", "NoiseGate", true, "Enable noise gate").Value : true, 
+                OnNoiseGateChanged, out _noiseGateToggle, parent);
+            yOffset -= spacing;
+
+            // Compression toggle
+            CreateToggle("Compression", new Vector2(0, yOffset), 
+                _config != null ? _config.Bind("Audio", "Compression", true, "Enable audio compression").Value : true, 
+                OnCompressionChanged, out _compressionToggle, parent);
+            yOffset -= spacing;
+
+            // Compression ratio slider (1:1 to 20:1)
+            CreateSlider("Compression Ratio", new Vector2(0, yOffset), 1f, 20f, 
+                _config != null ? _config.Bind("Audio", "CompressionRatio", 4f, "Audio compression ratio").Value : 4f, 
+                OnCompressionRatioChanged, out _compressionRatioSlider, parent);
+            yOffset -= spacing;
+
+            // Attack time slider (0ms to 100ms)
+            CreateSlider("Attack Time", new Vector2(0, yOffset), 0f, 100f, 
+                _config != null ? _config.Bind("Audio", "AttackTime", 10f, "Compressor attack time (ms)").Value : 10f, 
+                OnAttackTimeChanged, out _attackTimeSlider, parent);
+            yOffset -= spacing;
+
+            // Release time slider (0ms to 1000ms)
+            CreateSlider("Release Time", new Vector2(0, yOffset), 0f, 1000f, 
+                _config != null ? _config.Bind("Audio", "ReleaseTime", 100f, "Compressor release time (ms)").Value : 100f, 
+                OnReleaseTimeChanged, out _releaseTimeSlider, parent);
+            yOffset -= spacing;
+
+            // Calibrate button
+            CreateButton("Calibrate", new Vector2(0, yOffset), new Vector2(120, 30), OnCalibrateClicked, out _calibrateButton, parent);
         }
         
         private void CreateSlider(string labelText, Vector2 position, float minValue, float maxValue, float initialValue, 
@@ -298,7 +354,8 @@ namespace LethalMic.UI.Components
             containerRect.pivot = new Vector2(0.5f, 0.5f);
             containerRect.anchoredPosition = position;
             containerRect.sizeDelta = new Vector2(350, 50);
-            
+
+            // Label
             var labelObj = new GameObject($"{labelText}Label");
             labelObj.transform.SetParent(container.transform, false);
             var labelText_comp = labelObj.AddComponent<TextMeshProUGUI>();
@@ -306,28 +363,84 @@ namespace LethalMic.UI.Components
             labelText_comp.fontSize = 18;
             labelText_comp.color = _lcTextColor;
             labelText_comp.alignment = TextAlignmentOptions.Left;
-            
             var labelRect = labelText_comp.GetComponent<RectTransform>();
             labelRect.anchorMin = new Vector2(0, 0.5f);
             labelRect.anchorMax = new Vector2(0.4f, 1f);
             labelRect.offsetMin = Vector2.zero;
             labelRect.offsetMax = Vector2.zero;
-            
+
+            // Slider
             var sliderObj = new GameObject($"{labelText}Slider");
             sliderObj.transform.SetParent(container.transform, false);
             slider = sliderObj.AddComponent<UISlider>();
-            
             var sliderRect = slider.GetComponent<RectTransform>();
             sliderRect.anchorMin = new Vector2(0.45f, 0.2f);
             sliderRect.anchorMax = new Vector2(0.85f, 0.8f);
             sliderRect.offsetMin = Vector2.zero;
             sliderRect.offsetMax = Vector2.zero;
-            
+
+            // Background
+            var bgObj = new GameObject("Background");
+            bgObj.transform.SetParent(sliderObj.transform, false);
+            var bgImage = bgObj.AddComponent<UnityEngine.UI.Image>();
+            bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+            slider.targetGraphic = bgImage;
+            var bgRect = bgImage.GetComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+
+            // Fill Area
+            var fillAreaObj = new GameObject("Fill Area");
+            fillAreaObj.transform.SetParent(sliderObj.transform, false);
+            var fillAreaRect = fillAreaObj.AddComponent<RectTransform>();
+            fillAreaRect.anchorMin = new Vector2(0, 0.25f);
+            fillAreaRect.anchorMax = new Vector2(1, 0.75f);
+            fillAreaRect.offsetMin = Vector2.zero;
+            fillAreaRect.offsetMax = Vector2.zero;
+
+            // Fill
+            var fillObj = new GameObject("Fill");
+            fillObj.transform.SetParent(fillAreaObj.transform, false);
+            var fillImage = fillObj.AddComponent<UnityEngine.UI.Image>();
+            fillImage.color = _lcAccentColor;
+            var fillRect = fillImage.GetComponent<RectTransform>();
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = Vector2.one;
+            fillRect.offsetMin = Vector2.zero;
+            fillRect.offsetMax = Vector2.zero;
+            slider.fillRect = fillRect;
+
+            // Handle Slide Area
+            var handleAreaObj = new GameObject("Handle Slide Area");
+            handleAreaObj.transform.SetParent(sliderObj.transform, false);
+            var handleAreaRect = handleAreaObj.AddComponent<RectTransform>();
+            handleAreaRect.anchorMin = Vector2.zero;
+            handleAreaRect.anchorMax = Vector2.one;
+            handleAreaRect.offsetMin = Vector2.zero;
+            handleAreaRect.offsetMax = Vector2.zero;
+
+            // Handle
+            var handleObj = new GameObject("Handle");
+            handleObj.transform.SetParent(handleAreaObj.transform, false);
+            var handleImage = handleObj.AddComponent<UnityEngine.UI.Image>();
+            handleImage.color = _lcTextColor;
+            var handleRect = handleImage.GetComponent<RectTransform>();
+            handleRect.sizeDelta = new Vector2(20, 40);
+            handleRect.anchorMin = new Vector2(0.5f, 0.5f);
+            handleRect.anchorMax = new Vector2(0.5f, 0.5f);
+            handleRect.pivot = new Vector2(0.5f, 0.5f);
+            handleRect.anchoredPosition = Vector2.zero;
+            slider.handleRect = handleRect;
+
+            slider.direction = UISlider.Direction.LeftToRight;
             slider.minValue = minValue;
             slider.maxValue = maxValue;
             slider.value = initialValue;
             slider.onValueChanged.AddListener(onValueChanged);
-            
+
+            // Value Text
             var valueObj = new GameObject($"{labelText}Value");
             valueObj.transform.SetParent(container.transform, false);
             var valueText = valueObj.AddComponent<TextMeshProUGUI>();
@@ -354,30 +467,56 @@ namespace LethalMic.UI.Components
             containerRect.pivot = new Vector2(0.5f, 0.5f);
             containerRect.anchoredPosition = position;
             containerRect.sizeDelta = new Vector2(350, 40);
-            
+
+            // Toggle
             var toggleObj = new GameObject($"{labelText}Toggle");
             toggleObj.transform.SetParent(container.transform, false);
             toggle = toggleObj.AddComponent<UIToggle>();
-            
             var toggleRect = toggle.GetComponent<RectTransform>();
             toggleRect.anchorMin = new Vector2(0, 0);
-            toggleRect.anchorMax = new Vector2(1, 1);
-            toggleRect.offsetMin = Vector2.zero;
-            toggleRect.offsetMax = Vector2.zero;
-            
+            toggleRect.anchorMax = new Vector2(0, 1);
+            toggleRect.sizeDelta = new Vector2(40, 40);
+
+            // Background
             var bgObj = new GameObject("Background");
             bgObj.transform.SetParent(toggleObj.transform, false);
             var bgImage = bgObj.AddComponent<UnityEngine.UI.Image>();
             bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
-            
             var bgRect = bgImage.GetComponent<RectTransform>();
             bgRect.anchorMin = Vector2.zero;
             bgRect.anchorMax = Vector2.one;
             bgRect.offsetMin = Vector2.zero;
             bgRect.offsetMax = Vector2.zero;
-            
+            toggle.targetGraphic = bgImage;
+
+            // Checkmark
+            var checkmarkObj = new GameObject("Checkmark");
+            checkmarkObj.transform.SetParent(bgObj.transform, false);
+            var checkmarkImage = checkmarkObj.AddComponent<UnityEngine.UI.Image>();
+            checkmarkImage.color = _lcAccentColor;
+            var checkmarkRect = checkmarkImage.GetComponent<RectTransform>();
+            checkmarkRect.anchorMin = new Vector2(0.2f, 0.2f);
+            checkmarkRect.anchorMax = new Vector2(0.8f, 0.8f);
+            checkmarkRect.offsetMin = Vector2.zero;
+            checkmarkRect.offsetMax = Vector2.zero;
+            toggle.graphic = checkmarkImage;
+
             toggle.isOn = initialValue;
             toggle.onValueChanged.AddListener(onValueChanged);
+
+            // Label
+            var labelObj = new GameObject($"{labelText}Label");
+            labelObj.transform.SetParent(container.transform, false);
+            var labelText_comp = labelObj.AddComponent<TextMeshProUGUI>();
+            labelText_comp.text = labelText;
+            labelText_comp.fontSize = 18;
+            labelText_comp.color = _lcTextColor;
+            labelText_comp.alignment = TextAlignmentOptions.Left;
+            var labelRect = labelText_comp.GetComponent<RectTransform>();
+            labelRect.anchorMin = new Vector2(0.15f, 0.5f);
+            labelRect.anchorMax = new Vector2(1f, 1f);
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
         }
         
         private void CreateButton(string buttonText, Vector2 position, Vector2 size,
@@ -455,6 +594,30 @@ namespace LethalMic.UI.Components
             LogThrottled($"[UI] Noise Gate changed: {value}");
         }
         
+        private void OnCompressionChanged(bool value)
+        {
+            LethalMic.LethalMicStatic.SetCompressionEnabled(value);
+            LogThrottled($"[UI] Compression changed: {value}");
+        }
+        
+        private void OnCompressionRatioChanged(float value)
+        {
+            LethalMic.LethalMicStatic.SetCompressionRatio(value);
+            LogThrottled($"[UI] Compression ratio changed: {value:F1}:1");
+        }
+        
+        private void OnAttackTimeChanged(float value)
+        {
+            LethalMic.LethalMicStatic.SetAttackTime(value);
+            LogThrottled($"[UI] Attack time changed: {value:F0}ms");
+        }
+        
+        private void OnReleaseTimeChanged(float value)
+        {
+            LethalMic.LethalMicStatic.SetReleaseTime(value);
+            LogThrottled($"[UI] Release time changed: {value:F0}ms");
+        }
+        
         private void OnCalibrateClicked()
         {
             if (_isCalibrating) return;
@@ -492,7 +655,7 @@ namespace LethalMic.UI.Components
             {
                 float normalizedLevel = Mathf.Clamp01(_currentMicLevel);
                 _levelMeterFill.rectTransform.anchorMax = new Vector2(normalizedLevel, 1);
-                if (Mathf.Abs(normalizedLevel - _lastLoggedLevelMeter) > 0.2f)
+                if (Mathf.Abs(normalizedLevel - _lastLoggedLevelMeter) > _levelChangeThreshold)
                 {
                     _logger.LogInfo($"[UI] Level meter updated: {normalizedLevel:F4}");
                     _lastLoggedLevelMeter = normalizedLevel;
@@ -509,7 +672,7 @@ namespace LethalMic.UI.Components
             if (_peakMeterIndicator != null)
             {
                 float normalizedPeak = Mathf.Clamp01(_peakMicLevel);
-                if (Mathf.Abs(normalizedPeak - _lastLoggedPeak) > 0.2f)
+                if (Mathf.Abs(normalizedPeak - _lastLoggedPeak) > _levelChangeThreshold)
                 {
                     _logger.LogInfo($"[UI] Peak indicator updated: {normalizedPeak:F3} (from peak level {_peakMicLevel:F4})");
                     _lastLoggedPeak = normalizedPeak;
@@ -524,7 +687,7 @@ namespace LethalMic.UI.Components
             if (_micLevelText != null)
             {
                 float dbLevel = 20 * Mathf.Log10(Mathf.Max(_currentMicLevel, 0.0001f));
-                if (Mathf.Abs(dbLevel - _lastLoggedMicStatusDb) > 5f)
+                if (Mathf.Abs(dbLevel - _lastLoggedMicStatusDb) > _dbChangeThreshold)
                 {
                     _logger.LogInfo($"[UI] Level text updated: {dbLevel:F1} dB (from mic level {_currentMicLevel:F4})");
                     _lastLoggedMicStatusDb = dbLevel;
@@ -538,7 +701,7 @@ namespace LethalMic.UI.Components
             }
             if (_cpuUsageText != null)
             {
-                if (Mathf.Abs(_cpuUsage - _lastLoggedCpuUsage) > 10f)
+                if (Mathf.Abs(_cpuUsage - _lastLoggedCpuUsage) > _cpuChangeThreshold)
                 {
                     _logger.LogInfo($"[UI] CPU usage updated: {_cpuUsage:F1}%");
                     _lastLoggedCpuUsage = _cpuUsage;
@@ -551,7 +714,7 @@ namespace LethalMic.UI.Components
         {
             if (!_isInitialized) return;
             float dbLevel = 20 * Mathf.Log10(Mathf.Max(level, 0.0001f));
-            if (_lastLoggedStatus != status || Mathf.Abs(dbLevel - _lastLoggedLevelMeter) > 5f)
+            if (_lastLoggedStatus != status || Mathf.Abs(dbLevel - _lastLoggedLevelMeter) > _dbChangeThreshold)
             {
                 _logger.LogInfo($"[UI] UpdateMicStatus: status={status}, level={level:F6}, db={dbLevel:F2}");
                 _lastLoggedStatus = status;

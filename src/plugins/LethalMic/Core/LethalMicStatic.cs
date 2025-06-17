@@ -50,6 +50,10 @@ namespace LethalMic
         private static ConfigEntry<bool> NoiseGate;
         private static ConfigEntry<float> NoiseGateThreshold;
         private static ConfigEntry<bool> DebugLogging;
+        private static ConfigEntry<bool> Compression;
+        private static ConfigEntry<float> CompressionRatio;
+        private static ConfigEntry<float> AttackTime;
+        private static ConfigEntry<float> ReleaseTime;
         
         // UI
         private static GameObject uiObject;
@@ -58,6 +62,11 @@ namespace LethalMic
         
         // Throttle logging
         private static DateTime _lastSummaryLog = DateTime.MinValue;
+        
+        // Add for deduplicating/throttling Array.Copy errors
+        private static HashSet<string> _arrayCopyErrors = new HashSet<string>();
+        private static DateTime _lastArrayCopyLog = DateTime.MinValue;
+        private static int _arrayCopyErrorCount = 0;
         
         // Override Awake from BaseUnityPlugin
         private void Awake()
@@ -84,6 +93,10 @@ namespace LethalMic
                 NoiseGate = ConfigFile.Bind("Audio", "NoiseGate", true, "Enable noise gate");
                 NoiseGateThreshold = ConfigFile.Bind("Audio", "NoiseGateThreshold", 0.01f, "Noise gate threshold (0.0 to 1.0)");
                 DebugLogging = ConfigFile.Bind("Debug", "DebugLogging", false, "Enable debug logging");
+                Compression = ConfigFile.Bind("Audio", "Compression", true, "Enable audio compression");
+                CompressionRatio = ConfigFile.Bind("Audio", "CompressionRatio", 4f, "Audio compression ratio (1:1 to 20:1)");
+                AttackTime = ConfigFile.Bind("Audio", "AttackTime", 10f, "Compressor attack time in milliseconds (0-100)");
+                ReleaseTime = ConfigFile.Bind("Audio", "ReleaseTime", 100f, "Compressor release time in milliseconds (0-1000)");
                 
                 GetLogger().LogInfo($"Configuration loaded - Enabled: {EnableMod.Value}, Gain: {MicrophoneGain.Value}");
                 
@@ -421,7 +434,18 @@ namespace LethalMic
                     }
                     else
                     {
-                        GetLogger().LogWarning($"[AUDIO] Skipping Array.Copy due to invalid part sizes: part1={part1}, part2={part2}, startPos={startPos}, totalSamples={totalSamples}, windowSize={windowSize}");
+                        string errorSig = $"{part1},{part2},{startPos},{totalSamples},{windowSize}";
+                        if (_arrayCopyErrors.Add(errorSig))
+                        {
+                            GetLogger().LogWarning($"[AUDIO] Skipping Array.Copy due to invalid part sizes: part1={part1}, part2={part2}, startPos={startPos}, totalSamples={totalSamples}, windowSize={windowSize}");
+                        }
+                        _arrayCopyErrorCount++;
+                        if ((DateTime.Now - _lastArrayCopyLog).TotalSeconds > 10)
+                        {
+                            GetLogger().LogWarning($"[AUDIO] Skipping Array.Copy: {_arrayCopyErrorCount} errors in last 10s");
+                            _arrayCopyErrorCount = 0;
+                            _lastArrayCopyLog = DateTime.Now;
+                        }
                         currentMicrophoneLevel = 0f;
                         return;
                     }
@@ -541,6 +565,19 @@ namespace LethalMic
         }
 
         public static string GetInputDevice() => selectedDevice;
+
+        // Add compression-related methods
+        public static bool GetCompressionEnabled() => Compression?.Value ?? true;
+        public static void SetCompressionEnabled(bool value) { if (Compression != null) Compression.Value = value; }
+        
+        public static float GetCompressionRatio() => CompressionRatio?.Value ?? 4f;
+        public static void SetCompressionRatio(float value) { if (CompressionRatio != null) CompressionRatio.Value = value; }
+        
+        public static float GetAttackTime() => AttackTime?.Value ?? 10f;
+        public static void SetAttackTime(float value) { if (AttackTime != null) AttackTime.Value = value; }
+        
+        public static float GetReleaseTime() => ReleaseTime?.Value ?? 100f;
+        public static void SetReleaseTime(float value) { if (ReleaseTime != null) ReleaseTime.Value = value; }
     }
 
     // Add this class at the end of the file, outside LethalMicStatic
