@@ -67,6 +67,7 @@ namespace LethalMic
         private static HashSet<string> _arrayCopyErrors = new HashSet<string>();
         private static DateTime _lastArrayCopyLog = DateTime.MinValue;
         private static int _arrayCopyErrorCount = 0;
+        private static bool _hasLoggedArrayCopyError = false;
         
         // Override Awake from BaseUnityPlugin
         private void Awake()
@@ -435,9 +436,10 @@ namespace LethalMic
                     else
                     {
                         string errorSig = $"{part1},{part2},{startPos},{totalSamples},{windowSize}";
-                        if (_arrayCopyErrors.Add(errorSig))
+                        if (!_hasLoggedArrayCopyError)
                         {
                             GetLogger().LogWarning($"[AUDIO] Skipping Array.Copy due to invalid part sizes: part1={part1}, part2={part2}, startPos={startPos}, totalSamples={totalSamples}, windowSize={windowSize}");
+                            _hasLoggedArrayCopyError = true;
                         }
                         _arrayCopyErrorCount++;
                         if ((DateTime.Now - _lastArrayCopyLog).TotalSeconds > 10)

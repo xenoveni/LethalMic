@@ -56,7 +56,6 @@ namespace LethalMic.UI.Components
         private UIImage _levelMeterFill;
         private UIImage _peakMeterIndicator;
         private TextMeshProUGUI _noInputWarningText;
-        private TMP_Dropdown _deviceDropdown;
         
         // Lethal Company style colors
         private readonly Color _lcBackgroundColor = new Color(0.1f, 0.1f, 0.1f, 0.9f);
@@ -64,16 +63,8 @@ namespace LethalMic.UI.Components
         private readonly Color _lcAccentColor = new Color(0.2f, 0.6f, 0.2f, 1f);
         private readonly Color _lcWarningColor = new Color(0.8f, 0.2f, 0.2f, 1f);
         
-        private float _lastLoggedLevelMeter = float.MinValue;
-        private float _lastLoggedMicStatusDb = float.MinValue;
-        private float _lastLoggedPeak = float.MinValue;
-        private float _lastLoggedCpuUsage = -1f;
-        private string _lastLoggedStatus = null;
         private float _lastUILogTime = 0f;
         private float _uiLogInterval = 1.0f;
-        private float _levelChangeThreshold = 0.2f;  // 20% change threshold
-        private float _dbChangeThreshold = 5f;       // 5dB change threshold
-        private float _cpuChangeThreshold = 10f;     // 10% CPU change threshold
         
         // Add new UI element fields
         private UIToggle _compressionToggle;
@@ -130,230 +121,157 @@ namespace LethalMic.UI.Components
         {
             var mainPanel = new GameObject("MainPanel");
             mainPanel.transform.SetParent(_uiRoot.transform, false);
-            
+            var mainPanelRect = mainPanel.AddComponent<RectTransform>();
+            mainPanelRect.anchorMin = new Vector2(0.5f, 0.5f);
+            mainPanelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            mainPanelRect.pivot = new Vector2(0.5f, 0.5f); // Center
+            mainPanelRect.anchoredPosition = Vector2.zero;
+
             // Create background panel
             var backgroundObj = new GameObject("Background");
             backgroundObj.transform.SetParent(mainPanel.transform, false);
             var backgroundImage = backgroundObj.AddComponent<UnityEngine.UI.Image>();
             backgroundImage.color = _lcBackgroundColor;
-            
             var backgroundRect = backgroundImage.GetComponent<RectTransform>();
             backgroundRect.anchorMin = new Vector2(0.5f, 0.5f);
             backgroundRect.anchorMax = new Vector2(0.5f, 0.5f);
-            backgroundRect.pivot = new Vector2(0.5f, 0.5f);
+            backgroundRect.pivot = new Vector2(0.5f, 0.5f); // Center
             backgroundRect.anchoredPosition = Vector2.zero;
-            backgroundRect.sizeDelta = new Vector2(400, 400); // Increased height to accommodate settings
-            
-            // Create level meter background
+            backgroundRect.sizeDelta = new Vector2(400, 0); // Width fixed, height dynamic
+
+            // Add layout group and fitter
+            var layout = backgroundObj.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.UpperCenter;
+            layout.spacing = 25f; // Even spacing for all children
+            layout.padding = new RectOffset(20, 20, 20, 20);
+
+            var fitter = backgroundObj.AddComponent<UnityEngine.UI.ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            // Now, for each UI element, just create and parent to backgroundObj
+            // Status text
+            var statusObj = new GameObject("StatusText");
+            statusObj.transform.SetParent(backgroundObj.transform, false);
+            _micStatusText = statusObj.AddComponent<TextMeshProUGUI>();
+            _micStatusText.text = "Microphone: Not Connected";
+            _micStatusText.fontSize = 24;
+            _micStatusText.alignment = TextAlignmentOptions.Center;
+            _micStatusText.color = _lcTextColor;
+
+            // Level meter background
             var meterBgObj = new GameObject("LevelMeterBackground");
-            meterBgObj.transform.SetParent(mainPanel.transform, false);
+            meterBgObj.transform.SetParent(backgroundObj.transform, false);
             _levelMeterBackground = meterBgObj.AddComponent<UnityEngine.UI.Image>();
             _levelMeterBackground.color = new Color(0.2f, 0.2f, 0.2f, 1f);
-            
             var meterBgRect = _levelMeterBackground.GetComponent<RectTransform>();
-            meterBgRect.anchorMin = new Vector2(0.5f, 0.5f);
-            meterBgRect.anchorMax = new Vector2(0.5f, 0.5f);
-            meterBgRect.pivot = new Vector2(0.5f, 0.5f);
-            meterBgRect.anchoredPosition = new Vector2(0, 100); // Moved up to make room for settings
-            meterBgRect.sizeDelta = new Vector2(300, 30);
-            
-            // Create level meter fill
+            meterBgRect.sizeDelta = new Vector2(320, 24);
+
+            // Border for level meter
+            var meterBorderObj = new GameObject("LevelMeterBorder");
+            meterBorderObj.transform.SetParent(meterBgObj.transform, false);
+            var meterBorderImage = meterBorderObj.AddComponent<UnityEngine.UI.Image>();
+            meterBorderImage.color = Color.black; // Border color
+            var meterBorderRect = meterBorderObj.GetComponent<RectTransform>();
+            meterBorderRect.anchorMin = Vector2.zero;
+            meterBorderRect.anchorMax = Vector2.one;
+            meterBorderRect.offsetMin = new Vector2(-2, -2);
+            meterBorderRect.offsetMax = new Vector2(2, 2);
+            meterBorderImage.raycastTarget = false;
+            meterBorderImage.type = UnityEngine.UI.Image.Type.Sliced;
+            meterBorderImage.pixelsPerUnitMultiplier = 1f;
+            meterBgObj.transform.SetAsLastSibling(); // Ensure border is behind fill
+
+            // Level meter fill
             var meterFillObj = new GameObject("LevelMeterFill");
             meterFillObj.transform.SetParent(meterBgObj.transform, false);
             _levelMeterFill = meterFillObj.AddComponent<UnityEngine.UI.Image>();
             _levelMeterFill.color = _lcAccentColor;
-            
             var meterFillRect = _levelMeterFill.GetComponent<RectTransform>();
             meterFillRect.anchorMin = new Vector2(0, 0);
             meterFillRect.anchorMax = new Vector2(0, 1);
             meterFillRect.pivot = new Vector2(0, 0.5f);
             meterFillRect.anchoredPosition = Vector2.zero;
             meterFillRect.sizeDelta = Vector2.zero;
-            
-            // Create peak indicator
+
+            // Peak indicator
             var peakObj = new GameObject("PeakIndicator");
             peakObj.transform.SetParent(meterBgObj.transform, false);
             _peakMeterIndicator = peakObj.AddComponent<UnityEngine.UI.Image>();
             _peakMeterIndicator.color = _lcWarningColor;
-            
             var peakRect = _peakMeterIndicator.GetComponent<RectTransform>();
             peakRect.anchorMin = new Vector2(0, 0);
             peakRect.anchorMax = new Vector2(0, 1);
             peakRect.pivot = new Vector2(0.5f, 0.5f);
             peakRect.anchoredPosition = Vector2.zero;
-            peakRect.sizeDelta = new Vector2(2, 30);
-            
-            // Create status text
-            var statusObj = new GameObject("StatusText");
-            statusObj.transform.SetParent(mainPanel.transform, false);
-            _micStatusText = statusObj.AddComponent<TextMeshProUGUI>();
-            _micStatusText.text = "Microphone: Not Connected";
-            _micStatusText.fontSize = 24;
-            _micStatusText.alignment = TextAlignmentOptions.Center;
-            _micStatusText.color = _lcTextColor;
-            
-            var statusRect = _micStatusText.GetComponent<RectTransform>();
-            statusRect.anchorMin = new Vector2(0.5f, 0.5f);
-            statusRect.anchorMax = new Vector2(0.5f, 0.5f);
-            statusRect.pivot = new Vector2(0.5f, 0.5f);
-            statusRect.anchoredPosition = new Vector2(0, 150);
-            statusRect.sizeDelta = new Vector2(300, 30);
-            
-            // Create level text
+            peakRect.sizeDelta = new Vector2(2, 24);
+
+            // Level text
             var levelObj = new GameObject("LevelText");
-            levelObj.transform.SetParent(mainPanel.transform, false);
+            levelObj.transform.SetParent(backgroundObj.transform, false);
             _micLevelText = levelObj.AddComponent<TextMeshProUGUI>();
             _micLevelText.text = "Level: 0 dB";
             _micLevelText.fontSize = 20;
             _micLevelText.alignment = TextAlignmentOptions.Center;
             _micLevelText.color = _lcTextColor;
-            
-            var levelRect = _micLevelText.GetComponent<RectTransform>();
-            levelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            levelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            levelRect.pivot = new Vector2(0.5f, 0.5f);
-            levelRect.anchoredPosition = new Vector2(0, 50);
-            levelRect.sizeDelta = new Vector2(300, 30);
-            
-            // Create noise floor text
+
+            // Noise floor text
             var noiseFloorObj = new GameObject("NoiseFloorText");
-            noiseFloorObj.transform.SetParent(mainPanel.transform, false);
+            noiseFloorObj.transform.SetParent(backgroundObj.transform, false);
             _noiseFloorText = noiseFloorObj.AddComponent<TextMeshProUGUI>();
             _noiseFloorText.text = "Noise Floor: -60 dB";
             _noiseFloorText.fontSize = 20;
             _noiseFloorText.alignment = TextAlignmentOptions.Center;
             _noiseFloorText.color = _lcTextColor;
-            
-            var noiseFloorRect = _noiseFloorText.GetComponent<RectTransform>();
-            noiseFloorRect.anchorMin = new Vector2(0.5f, 0.5f);
-            noiseFloorRect.anchorMax = new Vector2(0.5f, 0.5f);
-            noiseFloorRect.pivot = new Vector2(0.5f, 0.5f);
-            noiseFloorRect.anchoredPosition = new Vector2(0, 0);
-            noiseFloorRect.sizeDelta = new Vector2(300, 30);
-            
-            // Create CPU usage text
+
+            // CPU usage text
             var cpuObj = new GameObject("CPUUsageText");
-            cpuObj.transform.SetParent(mainPanel.transform, false);
+            cpuObj.transform.SetParent(backgroundObj.transform, false);
             _cpuUsageText = cpuObj.AddComponent<TextMeshProUGUI>();
             _cpuUsageText.text = "CPU: 0%";
             _cpuUsageText.fontSize = 20;
             _cpuUsageText.alignment = TextAlignmentOptions.Center;
             _cpuUsageText.color = _lcTextColor;
-            
-            var cpuRect = _cpuUsageText.GetComponent<RectTransform>();
-            cpuRect.anchorMin = new Vector2(0.5f, 0.5f);
-            cpuRect.anchorMax = new Vector2(0.5f, 0.5f);
-            cpuRect.pivot = new Vector2(0.5f, 0.5f);
-            cpuRect.anchoredPosition = new Vector2(0, -50);
-            cpuRect.sizeDelta = new Vector2(300, 30);
-            
-            // Create warning text for no input
+
+            // Warning text for no input
             var warningObj = new GameObject("NoInputWarningText");
-            warningObj.transform.SetParent(mainPanel.transform, false);
+            warningObj.transform.SetParent(backgroundObj.transform, false);
             _noInputWarningText = warningObj.AddComponent<TextMeshProUGUI>();
             _noInputWarningText.text = "";
             _noInputWarningText.fontSize = 18;
             _noInputWarningText.color = _lcWarningColor;
             _noInputWarningText.alignment = TextAlignmentOptions.Center;
-            var warningRect = _noInputWarningText.GetComponent<RectTransform>();
-            warningRect.anchorMin = new Vector2(0.5f, 0.5f);
-            warningRect.anchorMax = new Vector2(0.5f, 0.5f);
-            warningRect.pivot = new Vector2(0.5f, 0.5f);
-            warningRect.anchoredPosition = new Vector2(0, -100);
-            warningRect.sizeDelta = new Vector2(300, 30);
 
-            // Create settings section directly in main panel
-            CreateSettingsSection(mainPanel.transform);
+            // Settings section
+            CreateSettingsSection(backgroundObj.transform);
         }
         
         private void CreateSettingsSection(Transform parent)
         {
-            // Device dropdown
-            var deviceDropdownObj = new GameObject("DeviceDropdown");
-            deviceDropdownObj.transform.SetParent(parent, false);
-            _deviceDropdown = deviceDropdownObj.AddComponent<TMP_Dropdown>();
-            var dropdownRect = _deviceDropdown.GetComponent<RectTransform>();
-            dropdownRect.anchorMin = new Vector2(0.5f, 0.5f);
-            dropdownRect.anchorMax = new Vector2(0.5f, 0.5f);
-            dropdownRect.pivot = new Vector2(0.5f, 0.5f);
-            dropdownRect.anchoredPosition = new Vector2(0, -120);
-            dropdownRect.sizeDelta = new Vector2(350, 40);
-            
-            // Populate devices
-            var devices = Microphone.devices;
-            _deviceDropdown.ClearOptions();
-            _deviceDropdown.AddOptions(new List<string>(devices));
-            
-            // Set current device
-            string currentDevice = LethalMic.LethalMicStatic.GetInputDevice();
-            int idx = Array.IndexOf(devices, currentDevice);
-            _deviceDropdown.value = idx >= 0 ? idx : 0;
-            _deviceDropdown.onValueChanged.AddListener(i => {
-                LethalMic.LethalMicStatic.SetInputDevice(devices[i]);
-                LogThrottled($"[UI] Input device changed: {devices[i]}");
-            });
-
-            // Create settings controls with proper spacing
-            float yOffset = -150;
-            float spacing = 50;
-
-            // Gain slider (0.1 to 10.0)
-            CreateSlider("Gain", new Vector2(0, yOffset), 0.1f, 10f, 
-                _config != null ? _config.Bind("Audio", "Gain", 1.0f, "Microphone gain").Value : 1f, 
-                OnGainChanged, out _gainSlider, parent);
-            yOffset -= spacing;
-
-            // Threshold slider (0 to 1.0)
-            CreateSlider("Threshold", new Vector2(0, yOffset), 0f, 1f, 
-                _config != null ? _config.Bind("Audio", "Threshold", 0.1f, "Voice activation threshold").Value : 0.1f, 
-                OnThresholdChanged, out _thresholdSlider, parent);
-            yOffset -= spacing;
-
+            // Gain slider
+            CreateSlider("Gain", 0.1f, 10f, _config != null ? _config.Bind("Audio", "Gain", 1.0f, "Microphone gain").Value : 1f, OnGainChanged, out _gainSlider, parent);
+            // Threshold slider
+            CreateSlider("Threshold", 0f, 1f, _config != null ? _config.Bind("Audio", "Threshold", 0.1f, "Voice activation threshold").Value : 0.1f, OnThresholdChanged, out _thresholdSlider, parent);
             // Noise Gate toggle
-            CreateToggle("Noise Gate", new Vector2(0, yOffset), 
-                _config != null ? _config.Bind("Audio", "NoiseGate", true, "Enable noise gate").Value : true, 
-                OnNoiseGateChanged, out _noiseGateToggle, parent);
-            yOffset -= spacing;
-
+            CreateToggle("Noise Gate", _config != null ? _config.Bind("Audio", "NoiseGate", true, "Enable noise gate").Value : true, OnNoiseGateChanged, out _noiseGateToggle, parent);
             // Compression toggle
-            CreateToggle("Compression", new Vector2(0, yOffset), 
-                _config != null ? _config.Bind("Audio", "Compression", true, "Enable audio compression").Value : true, 
-                OnCompressionChanged, out _compressionToggle, parent);
-            yOffset -= spacing;
-
-            // Compression ratio slider (1:1 to 20:1)
-            CreateSlider("Compression Ratio", new Vector2(0, yOffset), 1f, 20f, 
-                _config != null ? _config.Bind("Audio", "CompressionRatio", 4f, "Audio compression ratio").Value : 4f, 
-                OnCompressionRatioChanged, out _compressionRatioSlider, parent);
-            yOffset -= spacing;
-
-            // Attack time slider (0ms to 100ms)
-            CreateSlider("Attack Time", new Vector2(0, yOffset), 0f, 100f, 
-                _config != null ? _config.Bind("Audio", "AttackTime", 10f, "Compressor attack time (ms)").Value : 10f, 
-                OnAttackTimeChanged, out _attackTimeSlider, parent);
-            yOffset -= spacing;
-
-            // Release time slider (0ms to 1000ms)
-            CreateSlider("Release Time", new Vector2(0, yOffset), 0f, 1000f, 
-                _config != null ? _config.Bind("Audio", "ReleaseTime", 100f, "Compressor release time (ms)").Value : 100f, 
-                OnReleaseTimeChanged, out _releaseTimeSlider, parent);
-            yOffset -= spacing;
-
+            CreateToggle("Compression", _config != null ? _config.Bind("Audio", "Compression", true, "Enable audio compression").Value : true, OnCompressionChanged, out _compressionToggle, parent);
+            // Compression Ratio slider
+            CreateSlider("Compression Ratio", 1f, 20f, _config != null ? _config.Bind("Audio", "CompressionRatio", 4f, "Audio compression ratio").Value : 4f, OnCompressionRatioChanged, out _compressionRatioSlider, parent);
+            // Attack Time slider
+            CreateSlider("Attack Time", 0f, 100f, _config != null ? _config.Bind("Audio", "AttackTime", 10f, "Compressor attack time (ms)").Value : 10f, OnAttackTimeChanged, out _attackTimeSlider, parent);
+            // Release Time slider
+            CreateSlider("Release Time", 0f, 1000f, _config != null ? _config.Bind("Audio", "ReleaseTime", 100f, "Compressor release time (ms)").Value : 100f, OnReleaseTimeChanged, out _releaseTimeSlider, parent);
             // Calibrate button
-            CreateButton("Calibrate", new Vector2(0, yOffset), new Vector2(120, 30), OnCalibrateClicked, out _calibrateButton, parent);
+            CreateButton("Calibrate", new Vector2(0, 0), new Vector2(120, 30), OnCalibrateClicked, out _calibrateButton, parent);
         }
         
-        private void CreateSlider(string labelText, Vector2 position, float minValue, float maxValue, float initialValue, 
+        private void CreateSlider(string labelText, float minValue, float maxValue, float initialValue, 
             UnityEngine.Events.UnityAction<float> onValueChanged, out UISlider slider, Transform parent)
         {
             var container = new GameObject($"{labelText}Container");
             container.transform.SetParent(parent, false);
             var containerRect = container.AddComponent<RectTransform>();
-            containerRect.anchorMin = new Vector2(0.5f, 0.5f);
-            containerRect.anchorMax = new Vector2(0.5f, 0.5f);
-            containerRect.pivot = new Vector2(0.5f, 0.5f);
-            containerRect.anchoredPosition = position;
-            containerRect.sizeDelta = new Vector2(350, 50);
+            containerRect.sizeDelta = new Vector2(350, 40);
 
             // Label
             var labelObj = new GameObject($"{labelText}Label");
@@ -378,6 +296,21 @@ namespace LethalMic.UI.Components
             sliderRect.anchorMax = new Vector2(0.85f, 0.8f);
             sliderRect.offsetMin = Vector2.zero;
             sliderRect.offsetMax = Vector2.zero;
+
+            // Border for slider background
+            var sliderBorderObj = new GameObject("SliderBorder");
+            sliderBorderObj.transform.SetParent(sliderObj.transform, false);
+            var sliderBorderImage = sliderBorderObj.AddComponent<UnityEngine.UI.Image>();
+            sliderBorderImage.color = Color.black;
+            var sliderBorderRect = sliderBorderObj.GetComponent<RectTransform>();
+            sliderBorderRect.anchorMin = Vector2.zero;
+            sliderBorderRect.anchorMax = Vector2.one;
+            sliderBorderRect.offsetMin = new Vector2(-2, -2);
+            sliderBorderRect.offsetMax = new Vector2(2, 2);
+            sliderBorderImage.raycastTarget = false;
+            sliderBorderImage.type = UnityEngine.UI.Image.Type.Sliced;
+            sliderBorderImage.pixelsPerUnitMultiplier = 1f;
+            sliderObj.transform.SetAsLastSibling();
 
             // Background
             var bgObj = new GameObject("Background");
@@ -427,7 +360,7 @@ namespace LethalMic.UI.Components
             var handleImage = handleObj.AddComponent<UnityEngine.UI.Image>();
             handleImage.color = _lcTextColor;
             var handleRect = handleImage.GetComponent<RectTransform>();
-            handleRect.sizeDelta = new Vector2(20, 40);
+            handleRect.sizeDelta = new Vector2(10, 10); // Small handle
             handleRect.anchorMin = new Vector2(0.5f, 0.5f);
             handleRect.anchorMax = new Vector2(0.5f, 0.5f);
             handleRect.pivot = new Vector2(0.5f, 0.5f);
@@ -456,16 +389,12 @@ namespace LethalMic.UI.Components
             slider.onValueChanged.AddListener((value) => valueText.text = value.ToString("F2"));
         }
         
-        private void CreateToggle(string labelText, Vector2 position, bool initialValue,
+        private void CreateToggle(string labelText, bool initialValue,
             UnityEngine.Events.UnityAction<bool> onValueChanged, out UIToggle toggle, Transform parent)
         {
             var container = new GameObject($"{labelText}Container");
             container.transform.SetParent(parent, false);
             var containerRect = container.AddComponent<RectTransform>();
-            containerRect.anchorMin = new Vector2(0.5f, 0.5f);
-            containerRect.anchorMax = new Vector2(0.5f, 0.5f);
-            containerRect.pivot = new Vector2(0.5f, 0.5f);
-            containerRect.anchoredPosition = position;
             containerRect.sizeDelta = new Vector2(350, 40);
 
             // Toggle
@@ -473,9 +402,10 @@ namespace LethalMic.UI.Components
             toggleObj.transform.SetParent(container.transform, false);
             toggle = toggleObj.AddComponent<UIToggle>();
             var toggleRect = toggle.GetComponent<RectTransform>();
-            toggleRect.anchorMin = new Vector2(0, 0);
-            toggleRect.anchorMax = new Vector2(0, 1);
-            toggleRect.sizeDelta = new Vector2(40, 40);
+            toggleRect.anchorMin = new Vector2(0, 0.5f);
+            toggleRect.anchorMax = new Vector2(0, 0.5f);
+            toggleRect.sizeDelta = new Vector2(28, 28); // Fixed size
+            toggleRect.anchoredPosition = new Vector2(20, 0);
 
             // Background
             var bgObj = new GameObject("Background");
@@ -540,6 +470,20 @@ namespace LethalMic.UI.Components
             }
             buttonRect.anchoredPosition = position;
             buttonRect.sizeDelta = size;
+            // Border for button
+            var borderObj = new GameObject("ButtonBorder");
+            borderObj.transform.SetParent(buttonObj.transform, false);
+            var borderImage = borderObj.AddComponent<UnityEngine.UI.Image>();
+            borderImage.color = Color.black;
+            var borderRect = borderObj.GetComponent<RectTransform>();
+            borderRect.anchorMin = Vector2.zero;
+            borderRect.anchorMax = Vector2.one;
+            borderRect.offsetMin = new Vector2(-2, -2);
+            borderRect.offsetMax = new Vector2(2, 2);
+            borderImage.raycastTarget = false;
+            borderImage.type = UnityEngine.UI.Image.Type.Sliced;
+            borderImage.pixelsPerUnitMultiplier = 1f;
+            buttonObj.transform.SetAsLastSibling();
             var bgImage = buttonObj.AddComponent<UnityEngine.UI.Image>();
             if (bgImage != null)
                 bgImage.color = new Color(0.3f, 0.3f, 0.3f, 1f);
@@ -655,11 +599,6 @@ namespace LethalMic.UI.Components
             {
                 float normalizedLevel = Mathf.Clamp01(_currentMicLevel);
                 _levelMeterFill.rectTransform.anchorMax = new Vector2(normalizedLevel, 1);
-                if (Mathf.Abs(normalizedLevel - _lastLoggedLevelMeter) > _levelChangeThreshold)
-                {
-                    _logger.LogInfo($"[UI] Level meter updated: {normalizedLevel:F4}");
-                    _lastLoggedLevelMeter = normalizedLevel;
-                }
             }
             if (_noInputWarningText != null)
             {
@@ -672,11 +611,6 @@ namespace LethalMic.UI.Components
             if (_peakMeterIndicator != null)
             {
                 float normalizedPeak = Mathf.Clamp01(_peakMicLevel);
-                if (Mathf.Abs(normalizedPeak - _lastLoggedPeak) > _levelChangeThreshold)
-                {
-                    _logger.LogInfo($"[UI] Peak indicator updated: {normalizedPeak:F3} (from peak level {_peakMicLevel:F4})");
-                    _lastLoggedPeak = normalizedPeak;
-                }
                 _peakMeterIndicator.rectTransform.anchorMin = new Vector2(normalizedPeak, 0);
                 _peakMeterIndicator.rectTransform.anchorMax = new Vector2(normalizedPeak, 1);
             }
@@ -687,11 +621,6 @@ namespace LethalMic.UI.Components
             if (_micLevelText != null)
             {
                 float dbLevel = 20 * Mathf.Log10(Mathf.Max(_currentMicLevel, 0.0001f));
-                if (Mathf.Abs(dbLevel - _lastLoggedMicStatusDb) > _dbChangeThreshold)
-                {
-                    _logger.LogInfo($"[UI] Level text updated: {dbLevel:F1} dB (from mic level {_currentMicLevel:F4})");
-                    _lastLoggedMicStatusDb = dbLevel;
-                }
                 _micLevelText.text = $"Level: {dbLevel:F1} dB";
             }
             if (_noiseFloorText != null)
@@ -701,11 +630,6 @@ namespace LethalMic.UI.Components
             }
             if (_cpuUsageText != null)
             {
-                if (Mathf.Abs(_cpuUsage - _lastLoggedCpuUsage) > _cpuChangeThreshold)
-                {
-                    _logger.LogInfo($"[UI] CPU usage updated: {_cpuUsage:F1}%");
-                    _lastLoggedCpuUsage = _cpuUsage;
-                }
                 _cpuUsageText.text = $"CPU: {_cpuUsage:F1}%";
             }
         }
@@ -714,12 +638,6 @@ namespace LethalMic.UI.Components
         {
             if (!_isInitialized) return;
             float dbLevel = 20 * Mathf.Log10(Mathf.Max(level, 0.0001f));
-            if (_lastLoggedStatus != status || Mathf.Abs(dbLevel - _lastLoggedLevelMeter) > _dbChangeThreshold)
-            {
-                _logger.LogInfo($"[UI] UpdateMicStatus: status={status}, level={level:F6}, db={dbLevel:F2}");
-                _lastLoggedStatus = status;
-                _lastLoggedLevelMeter = dbLevel;
-            }
             _currentMicLevel = level;
             _micLevels[_micLevelIndex] = level;
             _micLevelIndex = (_micLevelIndex + 1) % _micLevels.Length;
