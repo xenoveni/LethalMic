@@ -49,12 +49,10 @@ namespace LethalMic.UI.Components
         private TextMeshProUGUI _noiseFloorText;
         private TextMeshProUGUI _cpuUsageText;
         private UISlider _gainSlider;
-        private UISlider _thresholdSlider;
         private UIToggle _noiseGateToggle;
         private UIButton _calibrateButton;
         private UIImage _levelMeterBackground;
         private UIImage _levelMeterFill;
-        private UIImage _peakMeterIndicator;
         private TextMeshProUGUI _noInputWarningText;
         
         // Lethal Company style colors
@@ -75,6 +73,10 @@ namespace LethalMic.UI.Components
         
         // Add a field to store the device name
         private string _currentDeviceName = "";
+        
+        private float _voiceThreshold = 0.1f; // Default threshold
+        private RectTransform _thresholdHandleRect;
+        private bool _isDraggingThreshold = false;
         
         public bool IsVisible => _isVisible;
         
@@ -186,7 +188,7 @@ namespace LethalMic.UI.Components
             meterBorderImage.pixelsPerUnitMultiplier = 1f;
             meterBgObj.transform.SetAsLastSibling(); // Ensure border is behind fill
 
-            // Level meter fill
+            // Level meter fill (green bar)
             var meterFillObj = new GameObject("LevelMeterFill");
             meterFillObj.transform.SetParent(meterBgObj.transform, false);
             _levelMeterFill = meterFillObj.AddComponent<UnityEngine.UI.Image>();
@@ -198,17 +200,38 @@ namespace LethalMic.UI.Components
             meterFillRect.anchoredPosition = Vector2.zero;
             meterFillRect.sizeDelta = Vector2.zero;
 
-            // Peak indicator
-            var peakObj = new GameObject("PeakIndicator");
-            peakObj.transform.SetParent(meterBgObj.transform, false);
-            _peakMeterIndicator = peakObj.AddComponent<UnityEngine.UI.Image>();
-            _peakMeterIndicator.color = _lcWarningColor;
-            var peakRect = _peakMeterIndicator.GetComponent<RectTransform>();
-            peakRect.anchorMin = new Vector2(0, 0);
-            peakRect.anchorMax = new Vector2(0, 1);
-            peakRect.pivot = new Vector2(0.5f, 0.5f);
-            peakRect.anchoredPosition = Vector2.zero;
-            peakRect.sizeDelta = new Vector2(2, 24);
+            // Threshold handle (draggable)
+            var thresholdHandleObj = new GameObject("ThresholdHandle");
+            thresholdHandleObj.transform.SetParent(meterBgObj.transform, false);
+            var thresholdHandleImage = thresholdHandleObj.AddComponent<UnityEngine.UI.Image>();
+            thresholdHandleImage.color = Color.yellow;
+            _thresholdHandleRect = thresholdHandleObj.GetComponent<RectTransform>();
+            _thresholdHandleRect.sizeDelta = new Vector2(6, 28);
+            _thresholdHandleRect.anchorMin = new Vector2(_voiceThreshold, 0);
+            _thresholdHandleRect.anchorMax = new Vector2(_voiceThreshold, 1);
+            _thresholdHandleRect.pivot = new Vector2(0.5f, 0.5f);
+            _thresholdHandleRect.anchoredPosition = Vector2.zero;
+
+            // Add drag events to the threshold handle
+            var eventTrigger = thresholdHandleObj.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+            var entryBegin = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown };
+            entryBegin.callback.AddListener((data) => { _isDraggingThreshold = true; });
+            eventTrigger.triggers.Add(entryBegin);
+            var entryEnd = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
+            entryEnd.callback.AddListener((data) => { _isDraggingThreshold = false; });
+            eventTrigger.triggers.Add(entryEnd);
+            var entryDrag = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.Drag };
+            entryDrag.callback.AddListener((data) => {
+                var pointerData = (UnityEngine.EventSystems.PointerEventData)data;
+                var localPos = Vector2.zero;
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(meterBgRect, pointerData.position, pointerData.pressEventCamera, out localPos);
+                float normalized = Mathf.Clamp01((localPos.x + meterBgRect.rect.width / 2) / meterBgRect.rect.width);
+                _voiceThreshold = normalized;
+                UpdateThresholdHandle();
+                // Save threshold to config if needed
+                if (_config != null) _config.Bind("Audio", "Threshold", _voiceThreshold, "Voice activation threshold").Value = _voiceThreshold;
+            });
+            eventTrigger.triggers.Add(entryDrag);
 
             // Level text
             var levelObj = new GameObject("LevelText");
@@ -254,8 +277,6 @@ namespace LethalMic.UI.Components
         {
             // Gain slider
             CreateSlider("Gain", 0.1f, 10f, _config != null ? _config.Bind("Audio", "Gain", 1.0f, "Microphone gain").Value : 1f, OnGainChanged, out _gainSlider, parent);
-            // Threshold slider
-            CreateSlider("Threshold", 0f, 1f, _config != null ? _config.Bind("Audio", "Threshold", 0.1f, "Voice activation threshold").Value : 0.1f, OnThresholdChanged, out _thresholdSlider, parent);
             // Noise Gate toggle
             CreateToggle("Noise Gate", _config != null ? _config.Bind("Audio", "NoiseGate", true, "Enable noise gate").Value : true, OnNoiseGateChanged, out _noiseGateToggle, parent);
             // Compression toggle
@@ -576,22 +597,14 @@ namespace LethalMic.UI.Components
             if (_config == null) return;
             
             var gain = _config.Bind("Audio", "Gain", 1.0f, "Microphone gain").Value;
-            var threshold = _config.Bind("Audio", "Threshold", 0.1f, "Voice activation threshold").Value;
             
             if (_gainSlider != null) _gainSlider.value = gain;
-            if (_thresholdSlider != null) _thresholdSlider.value = threshold;
         }
         
         private void OnGainChanged(float value)
         {
             LethalMic.LethalMicStatic.SetMicrophoneGain(value);
             LogThrottled($"[UI] GainSlider changed: value={value:F2}");
-        }
-        
-        private void OnThresholdChanged(float value)
-        {
-            LethalMic.LethalMicStatic.SetNoiseGateThreshold(value);
-            LogThrottled($"[UI] ThresholdSlider changed: value={value:F2}");
         }
         
         private void OnNoiseGateChanged(bool value)
@@ -649,9 +662,6 @@ namespace LethalMic.UI.Components
             // Update level meter
             UpdateLevelMeter();
             
-            // Update peak indicator
-            UpdatePeakIndicator();
-            
             // Update text displays
             UpdateTextDisplays();
         }
@@ -660,22 +670,22 @@ namespace LethalMic.UI.Components
         {
             if (_levelMeterFill != null)
             {
+                // Bar fill: left to right, based on normalized mic level
                 float normalizedLevel = Mathf.Clamp01(_currentMicLevel);
+                _levelMeterFill.rectTransform.anchorMin = new Vector2(0, 0);
                 _levelMeterFill.rectTransform.anchorMax = new Vector2(normalizedLevel, 1);
+                // Highlight the bar if above threshold
+                _levelMeterFill.color = normalizedLevel > _voiceThreshold ? Color.green : _lcAccentColor;
+            }
+            if (_thresholdHandleRect != null)
+            {
+                // Handle stays at threshold position
+                _thresholdHandleRect.anchorMin = new Vector2(_voiceThreshold, 0);
+                _thresholdHandleRect.anchorMax = new Vector2(_voiceThreshold, 1);
             }
             if (_noInputWarningText != null)
             {
                 _noInputWarningText.text = _currentMicLevel < 0.001f ? "No input detected! Check your microphone." : "";
-            }
-        }
-        
-        private void UpdatePeakIndicator()
-        {
-            if (_peakMeterIndicator != null)
-            {
-                float normalizedPeak = Mathf.Clamp01(_peakMicLevel);
-                _peakMeterIndicator.rectTransform.anchorMin = new Vector2(normalizedPeak, 0);
-                _peakMeterIndicator.rectTransform.anchorMax = new Vector2(normalizedPeak, 1);
             }
         }
         
@@ -700,6 +710,7 @@ namespace LethalMic.UI.Components
         public void UpdateMicStatus(string deviceName, string status, float level)
         {
             if (!_isInitialized) return;
+            Debug.Log($"[LethalMicUI] UpdateMicStatus received level: {level}");
             float dbLevel = 20 * Mathf.Log10(Mathf.Max(level, 0.0001f));
             _currentMicLevel = level;
             _micLevels[_micLevelIndex] = level;
@@ -743,6 +754,15 @@ namespace LethalMic.UI.Components
             {
                 _logger.LogInfo(message);
                 _lastUILogTime = Time.time;
+            }
+        }
+
+        private void UpdateThresholdHandle()
+        {
+            if (_thresholdHandleRect != null)
+            {
+                _thresholdHandleRect.anchorMin = new Vector2(_voiceThreshold, 0);
+                _thresholdHandleRect.anchorMax = new Vector2(_voiceThreshold, 1);
             }
         }
     }

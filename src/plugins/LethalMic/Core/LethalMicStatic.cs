@@ -13,6 +13,7 @@ using UnityEngine.SceneManagement;
 using static LethalMic.Core.PluginInfo;
 using LethalMic.UI.Components;
 using System.Linq;
+using Dissonance;
 
 namespace LethalMic
 {
@@ -401,16 +402,13 @@ namespace LethalMic
                 GetLogger().LogInfo($"StartRecording skipped - Initialized: {IsInitialized}, Enabled: {EnableMod.Value}, Recording: {isRecording}");
                 return;
             }
-                
             try
             {
                 GetLogger().LogInfo("Starting microphone recording...");
-                
-                // Start microphone recording
-                microphoneClip = Microphone.Start(selectedDevice, true, 10, 44100);
+                // Use a 1 second buffer for low latency
+                microphoneClip = Microphone.Start(selectedDevice, true, 1, 44100);
                 isRecording = true;
                 audioFrameCount = 0;
-                
                 GetLogger().LogInfo($"Recording started on device: {selectedDevice ?? "default"}");
                 GetLogger().LogInfo($"Clip frequency: {microphoneClip.frequency}Hz");
                 GetLogger().LogInfo($"Clip channels: {microphoneClip.channels}");
@@ -463,113 +461,31 @@ namespace LethalMic
         
         public static void UpdateAudio()
         {
-            if (!isRecording || microphoneClip == null) return;
-            try
+            var comms = UnityEngine.Object.FindObjectOfType<DissonanceComms>();
+            if (comms != null)
             {
-                int micPos = Microphone.GetPosition(_selectedDeviceName);
-                int windowSize = 256;
-                int totalSamples = microphoneClip.samples;
-                if (micPos < windowSize || totalSamples < windowSize)
+                // Get the private _preprocessingPipeline field
+                var pipelineField = typeof(DissonanceComms).GetField("_preprocessingPipeline", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (pipelineField != null)
                 {
-                    currentMicrophoneLevel = 0f;
-                    return;
-                }
-                float[] window = new float[windowSize];
-                int startPos = micPos - windowSize;
-                if (startPos < 0) startPos += totalSamples;
-                if (startPos + windowSize <= totalSamples)
-                {
-                    microphoneClip.GetData(window, startPos);
-                }
-                else
-                {
-                    int part1 = totalSamples - startPos;
-                    int part2 = windowSize - part1;
-                    float[] temp = new float[totalSamples];
-                    microphoneClip.GetData(temp, 0);
-                    // SAFETY CHECKS
-                    if (part1 > 0 && part1 <= totalSamples && part1 <= windowSize &&
-                        part2 >= 0 && part2 <= totalSamples && part2 <= windowSize)
+                    var pipeline = pipelineField.GetValue(comms);
+                    if (pipeline != null)
                     {
-                        Array.Copy(temp, startPos, window, 0, part1);
-                        Array.Copy(temp, 0, window, part1, part2);
-                    }
-                    else
-                    {
-                        string errorSig = $"{part1},{part2},{startPos},{totalSamples},{windowSize}";
-                        if (!_hasLoggedArrayCopyError)
+                        // Get the private _amplitudeRms field from the pipeline
+                        var amplitudeField = pipeline.GetType().GetField("_amplitudeRms", BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (amplitudeField != null)
                         {
-                            GetLogger().LogWarning($"[AUDIO] Skipping Array.Copy due to invalid part sizes: part1={part1}, part2={part2}, startPos={startPos}, totalSamples={totalSamples}, windowSize={windowSize}");
-                            _hasLoggedArrayCopyError = true;
+                            float amplitude = (float)amplitudeField.GetValue(pipeline);
+                            if (uiInstance != null)
+                            {
+                                uiInstance.UpdateMicStatus(selectedDevice, "Connected", amplitude);
+                                uiInstance.UpdateCPUUsage(cpuUsage);
+                            }
                         }
-                        _arrayCopyErrorCount++;
-                        if ((DateTime.Now - _lastArrayCopyLog).TotalSeconds > 10)
-                        {
-                            GetLogger().LogWarning($"[AUDIO] Skipping Array.Copy: {_arrayCopyErrorCount} errors in last 10s");
-                            _arrayCopyErrorCount = 0;
-                            _lastArrayCopyLog = DateTime.Now;
-                        }
-                        currentMicrophoneLevel = 0f;
-                        return;
                     }
                 }
-                // Check if all zeroes - only warn once
-                bool allZeroes = window.All(f => Math.Abs(f) < 1e-6);
-                if (allZeroes && !_lastZeroWarningLogged)
-                {
-                    GetLogger().LogWarning("[AUDIO] Microphone buffer is all zeroes! Check device name and mic permissions.");
-                    _lastZeroWarningLogged = true;
-                }
-                else if (!allZeroes && _lastZeroWarningLogged)
-                {
-                    GetLogger().LogInfo("[AUDIO] Microphone buffer now has valid data.");
-                    _lastZeroWarningLogged = false;
-                }
-                float sum = 0f;
-                for (int i = 0; i < window.Length; i++)
-                    sum += window[i] * window[i];
-                float rms = Mathf.Sqrt(sum / window.Length);
-                currentMicrophoneLevel = rms * MicrophoneGain.Value;
-                peakMicLevel = Mathf.Max(peakMicLevel * 0.95f, currentMicrophoneLevel);
-                bool prevVoiceDetected = voiceDetected;
-                voiceDetected = currentMicrophoneLevel > NoiseGateThreshold.Value;
-                cpuUsage = Mathf.Lerp(cpuUsage, currentMicrophoneLevel * 100f, Time.deltaTime);
-                
-                // Only log voice detection changes and significant level changes
-                if (voiceDetected != prevVoiceDetected || 
-                    (Mathf.Abs(currentMicrophoneLevel - _lastLoggedLevel) > 0.1f && 
-                     (DateTime.Now - _lastAudioLog).TotalSeconds > 1.0))
-                {
-                    float dbLevel = 20 * Mathf.Log10(Mathf.Max(currentMicrophoneLevel, 0.0001f));
-                    if (voiceDetected != prevVoiceDetected)
-                    {
-                        if (voiceDetected)
-                            GetLogger().LogInfo($"[AUDIO] Voice detected! Level: {currentMicrophoneLevel:F4} ({dbLevel:F1} dB)");
-                        else
-                            GetLogger().LogInfo($"[AUDIO] Voice no longer detected. Level: {currentMicrophoneLevel:F4} ({dbLevel:F1} dB)");
-                    }
-                    else
-                    {
-                        GetLogger().LogInfo($"[AUDIO] Significant level change: {currentMicrophoneLevel:F4} ({dbLevel:F1} dB)");
-                    }
-                    _lastLoggedLevel = currentMicrophoneLevel;
-                    _lastAudioLog = DateTime.Now;
-                }
-                
-                if (uiInstance != null)
-                {
-                    uiInstance.UpdateMicStatus(selectedDevice, "Connected", currentMicrophoneLevel);
-                    uiInstance.UpdateCPUUsage(cpuUsage);
-                }
-                audioFrameCount++;
             }
-            catch (Exception ex)
-            {
-                GetLogger().LogError($"Error processing microphone audio: {ex}");
-                GetLogger().LogError($"Stack trace: {ex.StackTrace}");
-                errorCount++;
-                currentMicrophoneLevel = 0f;
-            }
+            // (Keep the rest of your audio processing logic for filters, but do not use the RMS value for the UI bar)
         }
         
         // Public methods for external access
