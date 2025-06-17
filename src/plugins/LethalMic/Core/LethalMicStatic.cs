@@ -144,56 +144,117 @@ namespace LethalMic
                 var devices = Microphone.devices;
                 GetLogger().LogInfo($"Found {devices.Length} microphone devices");
                 
+                if (devices.Length == 0)
+                {
+                    GetLogger().LogError("No microphone devices found. Please check your system settings and ensure a microphone is connected.");
+                    if (uiInstance != null)
+                    {
+                        uiInstance.UpdateMicStatus("None", "No Devices", 0f);
+                    }
+                    return;
+                }
+
+                // Log all available devices
                 foreach (var device in devices)
                 {
                     GetLogger().LogInfo($"Available device: {device}");
                 }
                 
-                // Select device
-                selectedDevice = string.IsNullOrEmpty(InputDevice.Value) ? null : InputDevice.Value;
-                GetLogger().LogInfo($"Selected device: {selectedDevice ?? "default"}");
-                
-                // Test microphone access
-                if (devices.Length > 0)
+                // Validate and select device
+                if (string.IsNullOrEmpty(InputDevice.Value))
                 {
-                    GetLogger().LogInfo("Audio system ready");
-                    GetLogger().LogInfo($"Sample rate: {AudioSettings.outputSampleRate}Hz");
-                    GetLogger().LogInfo($"Speaker mode: {AudioSettings.speakerMode}");
-                    
-                    // Update UI with microphone status
-                    if (uiInstance != null)
-                    {
-                        uiInstance.UpdateMicStatus("Connected", 0f);
-                    }
+                    // If no device is selected in config, use the first available device
+                    selectedDevice = devices[0];
+                    GetLogger().LogInfo($"No device selected in config, using default device: {selectedDevice}");
                 }
                 else
                 {
-                    GetLogger().LogWarning("No microphone devices found");
-                    if (uiInstance != null)
+                    // Check if the configured device exists
+                    if (devices.Contains(InputDevice.Value))
                     {
-                        uiInstance.UpdateMicStatus("Not Found", 0f);
+                        selectedDevice = InputDevice.Value;
+                        GetLogger().LogInfo($"Using configured device: {selectedDevice}");
+                    }
+                    else
+                    {
+                        GetLogger().LogWarning($"Configured device '{InputDevice.Value}' not found, falling back to default device: {devices[0]}");
+                        selectedDevice = devices[0];
                     }
                 }
 
-                _selectedDeviceName = devices[0]; // Use the first available device
-                GetLogger().LogInfo($"[AUDIO] Using device: {_selectedDeviceName}");
-                microphoneClip = Microphone.Start(_selectedDeviceName, true, 10, 44100);
-                if (microphoneClip == null)
+                // Initialize microphone with proper error handling
+                try
                 {
-                    GetLogger().LogError("[AUDIO] Failed to start microphone!");
-                    return;
+                    microphoneClip = Microphone.Start(selectedDevice, true, 10, 44100);
+                    if (microphoneClip == null)
+                    {
+                        throw new Exception("Microphone.Start returned null");
+                    }
+
+                    GetLogger().LogInfo($"Successfully initialized microphone:");
+                    GetLogger().LogInfo($"- Device: {selectedDevice}");
+                    GetLogger().LogInfo($"- Sample rate: {microphoneClip.frequency}Hz");
+                    GetLogger().LogInfo($"- Channels: {microphoneClip.channels}");
+                    GetLogger().LogInfo($"- Length: {microphoneClip.length} samples");
+
+                    // Update UI with success status
+                    if (uiInstance != null)
+                    {
+                        uiInstance.UpdateMicStatus(selectedDevice, "Connected", 0f);
+                    }
+
+                    isRecording = true;
                 }
-                GetLogger().LogInfo($"[AUDIO] Microphone started. Sample rate: {microphoneClip.frequency}, Channels: {microphoneClip.channels}");
+                catch (Exception micEx)
+                {
+                    GetLogger().LogError($"Failed to initialize microphone: {micEx.Message}");
+                    GetLogger().LogError($"Stack trace: {micEx.StackTrace}");
+                    
+                    // Try to recover by attempting to use the default device
+                    if (selectedDevice != devices[0])
+                    {
+                        GetLogger().LogInfo("Attempting to recover using default device...");
+                        selectedDevice = devices[0];
+                        try
+                        {
+                            microphoneClip = Microphone.Start(selectedDevice, true, 10, 44100);
+                            if (microphoneClip != null)
+                            {
+                                GetLogger().LogInfo("Successfully recovered using default device");
+                                isRecording = true;
+                                if (uiInstance != null)
+                                {
+                                    uiInstance.UpdateMicStatus(selectedDevice, "Connected", 0f);
+                                }
+                            }
+                        }
+                        catch (Exception recoveryEx)
+                        {
+                            GetLogger().LogError($"Recovery attempt failed: {recoveryEx.Message}");
+                            if (uiInstance != null)
+                            {
+                                uiInstance.UpdateMicStatus(selectedDevice, "Error", 0f);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (uiInstance != null)
+                        {
+                            uiInstance.UpdateMicStatus(selectedDevice, "Error", 0f);
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
-                GetLogger().LogError($"Failed to initialize audio: {ex}");
+                GetLogger().LogError($"Failed to initialize audio system: {ex}");
                 GetLogger().LogError($"Stack trace: {ex.StackTrace}");
                 errorCount++;
                 
                 if (uiInstance != null)
                 {
-                    uiInstance.UpdateMicStatus("Error", 0f);
+                    uiInstance.UpdateMicStatus("None", "Error", 0f);
                 }
             }
         }
@@ -497,7 +558,7 @@ namespace LethalMic
                 
                 if (uiInstance != null)
                 {
-                    uiInstance.UpdateMicStatus("Connected", currentMicrophoneLevel);
+                    uiInstance.UpdateMicStatus(selectedDevice, "Connected", currentMicrophoneLevel);
                     uiInstance.UpdateCPUUsage(cpuUsage);
                 }
                 audioFrameCount++;

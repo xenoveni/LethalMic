@@ -73,6 +73,9 @@ namespace LethalMic.UI.Components
         private UISlider _releaseTimeSlider;
         private TextMeshProUGUI _calibratingText;
         
+        // Add a field to store the device name
+        private string _currentDeviceName = "";
+        
         public bool IsVisible => _isVisible;
         
         public void Initialize(ManualLogSource logger, ConfigFile config)
@@ -694,7 +697,7 @@ namespace LethalMic.UI.Components
             }
         }
         
-        public void UpdateMicStatus(string status, float level)
+        public void UpdateMicStatus(string deviceName, string status, float level)
         {
             if (!_isInitialized) return;
             float dbLevel = 20 * Mathf.Log10(Mathf.Max(level, 0.0001f));
@@ -702,9 +705,11 @@ namespace LethalMic.UI.Components
             _micLevels[_micLevelIndex] = level;
             _micLevelIndex = (_micLevelIndex + 1) % _micLevels.Length;
             _peakMicLevel = Mathf.Max(_peakMicLevel * 0.95f, level);
+            _currentDeviceName = deviceName;
             if (_micStatusText != null)
             {
-                _micStatusText.text = $"Microphone: {status}";
+                // Show device name and status, matching the game's style
+                _micStatusText.text = $"Current input device: {_currentDeviceName}\nStatus: {status}";
                 _micStatusText.color = status == "Connected" ? _lcAccentColor : _lcWarningColor;
             }
         }
