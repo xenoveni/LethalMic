@@ -42,7 +42,6 @@ namespace LethalMic
         private static float cpuUsage = 0f;
         private static int audioFrameCount = 0;
         private static int errorCount = 0;
-        private static float peakMicLevel = -60f;
         
         // Configuration
         private static ConfigEntry<bool> EnableMod;
@@ -67,8 +66,7 @@ namespace LethalMic
         // Add for deduplicating/throttling Array.Copy errors
         private static HashSet<string> _arrayCopyErrors = new HashSet<string>();
         private static DateTime _lastArrayCopyLog = DateTime.MinValue;
-        private static int _arrayCopyErrorCount = 0;
-        private static bool _hasLoggedArrayCopyError = false;
+        private static DateTime _lastAudioLog = DateTime.MinValue;
         
         // Override Awake from BaseUnityPlugin
         private void Awake()
@@ -128,7 +126,6 @@ namespace LethalMic
             }
         }
         
-        private static string _selectedDeviceName = null;
         private static void InitializeAudio()
         {
             if (!EnableMod.Value)
@@ -455,9 +452,7 @@ namespace LethalMic
         }
         
         // Throttling variables for logging
-        private static float _lastLoggedLevel = -1f;
-        private static bool _lastZeroWarningLogged = false;
-        private static DateTime _lastAudioLog = DateTime.MinValue;
+        //private static float _lastLoggedLevel = -1f;
         
         public static void UpdateAudio()
         {

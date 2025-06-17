@@ -76,7 +76,6 @@ namespace LethalMic.UI.Components
         
         private float _voiceThreshold = 0.1f; // Default threshold
         private RectTransform _thresholdHandleRect;
-        private bool _isDraggingThreshold = false;
         
         public bool IsVisible => _isVisible;
         
@@ -215,10 +214,10 @@ namespace LethalMic.UI.Components
             // Add drag events to the threshold handle
             var eventTrigger = thresholdHandleObj.AddComponent<UnityEngine.EventSystems.EventTrigger>();
             var entryBegin = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown };
-            entryBegin.callback.AddListener((data) => { _isDraggingThreshold = true; });
+            entryBegin.callback.AddListener((data) => { });
             eventTrigger.triggers.Add(entryBegin);
             var entryEnd = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
-            entryEnd.callback.AddListener((data) => { _isDraggingThreshold = false; });
+            entryEnd.callback.AddListener((data) => { });
             eventTrigger.triggers.Add(entryEnd);
             var entryDrag = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.Drag };
             entryDrag.callback.AddListener((data) => {
