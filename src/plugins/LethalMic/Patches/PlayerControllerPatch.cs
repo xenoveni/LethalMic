@@ -24,7 +24,6 @@ public static class PlayerControllerPatch
     [HarmonyPostfix]
     public static void UpdatePatch(PlayerControllerB __instance)
     {
-        Logger?.LogDebug("[PATCH] PlayerControllerPatch.UpdatePatch running");
         try
         {
             if (__instance == null || !__instance.isPlayerControlled || !__instance.IsOwner)

@@ -199,14 +199,14 @@ namespace LethalMic
                 uiInstance = uiObject.AddComponent<LethalMicUI>();
                 uiInstance.Initialize(Logger, ConfigFile);
                 
-                // Ensure UI stays active
-                uiObject.SetActive(true);
-
-                // Create updater GameObject
-                updaterObject = new GameObject("LethalMicUpdater");
-                updaterObject.hideFlags = HideFlags.HideAndDontSave;
-                UnityEngine.Object.DontDestroyOnLoad(updaterObject);
-                updaterObject.AddComponent<LethalMicUpdater>();
+                // Ensure updater is present
+                if (updaterObject == null)
+                {
+                    updaterObject = new GameObject("LethalMicUpdater");
+                    updaterObject.hideFlags = HideFlags.HideAndDontSave;
+                    UnityEngine.Object.DontDestroyOnLoad(updaterObject);
+                    updaterObject.AddComponent<LethalMicUpdater>();
+                }
                 
                 GetLogger().LogInfo("UI initialized successfully");
             }
@@ -447,15 +447,28 @@ namespace LethalMic
                 bool prevVoiceDetected = voiceDetected;
                 voiceDetected = currentMicrophoneLevel > NoiseGateThreshold.Value;
                 cpuUsage = Mathf.Lerp(cpuUsage, currentMicrophoneLevel * 100f, Time.deltaTime);
-                // Only log when voiceDetected changes
-                if (voiceDetected != prevVoiceDetected)
+                
+                // Only log voice detection changes and significant level changes
+                if (voiceDetected != prevVoiceDetected || 
+                    (Mathf.Abs(currentMicrophoneLevel - _lastLoggedLevel) > 0.1f && 
+                     (DateTime.Now - _lastAudioLog).TotalSeconds > 1.0))
                 {
                     float dbLevel = 20 * Mathf.Log10(Mathf.Max(currentMicrophoneLevel, 0.0001f));
-                    if (voiceDetected)
-                        GetLogger().LogInfo($"[AUDIO] Voice detected! Level: {currentMicrophoneLevel:F4} ({dbLevel:F1} dB)");
+                    if (voiceDetected != prevVoiceDetected)
+                    {
+                        if (voiceDetected)
+                            GetLogger().LogInfo($"[AUDIO] Voice detected! Level: {currentMicrophoneLevel:F4} ({dbLevel:F1} dB)");
+                        else
+                            GetLogger().LogInfo($"[AUDIO] Voice no longer detected. Level: {currentMicrophoneLevel:F4} ({dbLevel:F1} dB)");
+                    }
                     else
-                        GetLogger().LogInfo($"[AUDIO] Voice no longer detected. Level: {currentMicrophoneLevel:F4} ({dbLevel:F1} dB)");
+                    {
+                        GetLogger().LogInfo($"[AUDIO] Significant level change: {currentMicrophoneLevel:F4} ({dbLevel:F1} dB)");
+                    }
+                    _lastLoggedLevel = currentMicrophoneLevel;
+                    _lastAudioLog = DateTime.Now;
                 }
+                
                 if (uiInstance != null)
                 {
                     uiInstance.UpdateMicStatus("Connected", currentMicrophoneLevel);
@@ -518,6 +531,16 @@ namespace LethalMic
         public static void SetNoiseGateThreshold(float value) { if (NoiseGateThreshold != null) NoiseGateThreshold.Value = value; }
         public static bool GetNoiseGateEnabled() => NoiseGate?.Value ?? true;
         public static void SetNoiseGateEnabled(bool value) { if (NoiseGate != null) NoiseGate.Value = value; }
+
+        public static void SetInputDevice(string deviceName)
+        {
+            if (InputDevice != null) InputDevice.Value = deviceName;
+            selectedDevice = deviceName;
+            StopRecording();
+            StartRecording();
+        }
+
+        public static string GetInputDevice() => selectedDevice;
     }
 
     // Add this class at the end of the file, outside LethalMicStatic
