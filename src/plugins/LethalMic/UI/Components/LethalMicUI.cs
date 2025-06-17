@@ -71,6 +71,7 @@ namespace LethalMic.UI.Components
         private UISlider _compressionRatioSlider;
         private UISlider _attackTimeSlider;
         private UISlider _releaseTimeSlider;
+        private TextMeshProUGUI _calibratingText;
         
         public bool IsVisible => _isVisible;
         
@@ -137,7 +138,7 @@ namespace LethalMic.UI.Components
             backgroundRect.anchorMax = new Vector2(0.5f, 0.5f);
             backgroundRect.pivot = new Vector2(0.5f, 0.5f); // Center
             backgroundRect.anchoredPosition = Vector2.zero;
-            backgroundRect.sizeDelta = new Vector2(400, 0); // Width fixed, height dynamic
+            backgroundRect.sizeDelta = new Vector2(0, 0); // Width and height dynamic
 
             // Add layout group and fitter
             var layout = backgroundObj.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
@@ -147,6 +148,7 @@ namespace LethalMic.UI.Components
 
             var fitter = backgroundObj.AddComponent<UnityEngine.UI.ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             // Now, for each UI element, just create and parent to backgroundObj
             // Status text
@@ -263,6 +265,25 @@ namespace LethalMic.UI.Components
             CreateSlider("Release Time", 0f, 1000f, _config != null ? _config.Bind("Audio", "ReleaseTime", 100f, "Compressor release time (ms)").Value : 100f, OnReleaseTimeChanged, out _releaseTimeSlider, parent);
             // Calibrate button
             CreateButton("Calibrate", new Vector2(0, 0), new Vector2(120, 30), OnCalibrateClicked, out _calibrateButton, parent);
+
+            // Add extra space and Calibrating... text below the button
+            var calibratingContainer = new GameObject("CalibratingContainer");
+            calibratingContainer.transform.SetParent(parent, false);
+            var calibratingLayout = calibratingContainer.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            calibratingLayout.childAlignment = TextAnchor.MiddleCenter;
+            calibratingLayout.spacing = 0;
+            calibratingLayout.padding = new RectOffset(0, 0, 8, 0); // Add space above
+            var calibratingFitter = calibratingContainer.AddComponent<UnityEngine.UI.ContentSizeFitter>();
+            calibratingFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            calibratingFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var calibratingTextObj = new GameObject("CalibratingText");
+            calibratingTextObj.transform.SetParent(calibratingContainer.transform, false);
+            _calibratingText = calibratingTextObj.AddComponent<TextMeshProUGUI>();
+            _calibratingText.text = "Calibrating...";
+            _calibratingText.fontSize = 18;
+            _calibratingText.color = _lcAccentColor;
+            _calibratingText.alignment = TextAlignmentOptions.Center;
+            _calibratingText.gameObject.SetActive(false);
         }
         
         private void CreateSlider(string labelText, float minValue, float maxValue, float initialValue, 
@@ -271,7 +292,9 @@ namespace LethalMic.UI.Components
             var container = new GameObject($"{labelText}Container");
             container.transform.SetParent(parent, false);
             var containerRect = container.AddComponent<RectTransform>();
-            containerRect.sizeDelta = new Vector2(350, 40);
+            containerRect.sizeDelta = new Vector2(0, 40);
+            var layoutElem = container.AddComponent<UnityEngine.UI.LayoutElement>();
+            layoutElem.minWidth = 650;
 
             // Label
             var labelObj = new GameObject($"{labelText}Label");
@@ -386,6 +409,9 @@ namespace LethalMic.UI.Components
             valueRect.anchorMax = new Vector2(1f, 1f);
             valueRect.offsetMin = Vector2.zero;
             valueRect.offsetMax = Vector2.zero;
+            var valueLayoutElem = valueObj.AddComponent<UnityEngine.UI.LayoutElement>();
+            valueLayoutElem.minWidth = 120;
+            valueLayoutElem.preferredWidth = 120;
             slider.onValueChanged.AddListener((value) => valueText.text = value.ToString("F2"));
         }
         
@@ -395,7 +421,9 @@ namespace LethalMic.UI.Components
             var container = new GameObject($"{labelText}Container");
             container.transform.SetParent(parent, false);
             var containerRect = container.AddComponent<RectTransform>();
-            containerRect.sizeDelta = new Vector2(350, 40);
+            containerRect.sizeDelta = new Vector2(0, 40);
+            var layoutElem = container.AddComponent<UnityEngine.UI.LayoutElement>();
+            layoutElem.minWidth = 540;
 
             // Toggle
             var toggleObj = new GameObject($"{labelText}Toggle");
@@ -452,41 +480,71 @@ namespace LethalMic.UI.Components
         private void CreateButton(string buttonText, Vector2 position, Vector2 size,
             UnityEngine.Events.UnityAction onClick, out UIButton button, Transform parent, bool isCloseButton = false)
         {
+            // Create a container for the button so it can size to content
+            var buttonContainer = new GameObject($"{buttonText}ButtonContainer");
+            buttonContainer.transform.SetParent(parent, false);
+            var containerRect = buttonContainer.AddComponent<RectTransform>();
+            var containerLayout = buttonContainer.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+            containerLayout.childAlignment = TextAnchor.MiddleCenter;
+            containerLayout.childForceExpandWidth = false;
+            containerLayout.childForceExpandHeight = false;
+            containerLayout.padding = new RectOffset(0, 0, 12, 0); // Add top margin for spacing
+            var containerFitter = buttonContainer.AddComponent<UnityEngine.UI.ContentSizeFitter>();
+            containerFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            containerFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
             var buttonObj = new GameObject($"{buttonText}Button");
-            buttonObj.transform.SetParent(parent, false);
+            buttonObj.transform.SetParent(buttonContainer.transform, false);
             var buttonRect = buttonObj.AddComponent<RectTransform>();
             button = buttonObj.AddComponent<UIButton>();
-            if (isCloseButton)
-            {
-                buttonRect.anchorMin = new Vector2(1, 1);
-                buttonRect.anchorMax = new Vector2(1, 1);
-                buttonRect.pivot = new Vector2(1, 1);
-            }
-            else
-            {
-                buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
-                buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
-                buttonRect.pivot = new Vector2(0.5f, 0.5f);
-            }
-            buttonRect.anchoredPosition = position;
-            buttonRect.sizeDelta = size;
-            // Border for button
+            buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+            buttonRect.pivot = new Vector2(0.5f, 0.5f);
+            buttonRect.anchoredPosition = Vector2.zero;
+            buttonRect.sizeDelta = Vector2.zero; // Let content size it
+            var buttonLayoutElem = buttonObj.AddComponent<UnityEngine.UI.LayoutElement>();
+            buttonLayoutElem.minWidth = 110; // Ensure button is wide enough for text
+            buttonLayoutElem.preferredWidth = 120;
+            buttonLayoutElem.minHeight = 32;
+            buttonLayoutElem.preferredHeight = 36;
+
+            // Border for button (visible outline)
             var borderObj = new GameObject("ButtonBorder");
             borderObj.transform.SetParent(buttonObj.transform, false);
             var borderImage = borderObj.AddComponent<UnityEngine.UI.Image>();
-            borderImage.color = Color.black;
+            borderImage.color = new Color(0.3f, 0.3f, 0.3f, 1f); // Use dark gray border for visibility
             var borderRect = borderObj.GetComponent<RectTransform>();
             borderRect.anchorMin = Vector2.zero;
             borderRect.anchorMax = Vector2.one;
-            borderRect.offsetMin = new Vector2(-2, -2);
+            borderRect.offsetMin = new Vector2(-2, -2); // 2px padding for border
             borderRect.offsetMax = new Vector2(2, 2);
             borderImage.raycastTarget = false;
             borderImage.type = UnityEngine.UI.Image.Type.Sliced;
             borderImage.pixelsPerUnitMultiplier = 1f;
-            buttonObj.transform.SetAsLastSibling();
+            // Button background (solid black)
             var bgImage = buttonObj.AddComponent<UnityEngine.UI.Image>();
             if (bgImage != null)
-                bgImage.color = new Color(0.3f, 0.3f, 0.3f, 1f);
+            {
+                bgImage.color = Color.black;
+                bgImage.raycastTarget = true; // Ensure button is clickable
+            }
+            button.targetGraphic = bgImage; // Set background as target graphic
+
+            // Add 3D press effect using Button ColorBlock
+            var colors = button.colors;
+            colors.normalColor = Color.black;
+            colors.highlightedColor = new Color(0.12f, 0.12f, 0.12f, 1f); // Slightly lighter black
+            colors.pressedColor = new Color(0.18f, 0.18f, 0.18f, 1f); // Slightly lighter black for pressed
+            colors.selectedColor = Color.black;
+            colors.disabledColor = new Color(0.08f, 0.08f, 0.08f, 1f);
+            colors.colorMultiplier = 1f;
+            button.colors = colors;
+            button.transition = UnityEngine.UI.Selectable.Transition.ColorTint;
+            // Remove Press3DEffect if present
+            var press3D = buttonObj.GetComponent<LethalMic.UI.Components.Press3DEffect>();
+            if (press3D != null) Destroy(press3D);
+
+            // Text with padding
             var textObj = new GameObject("Text");
             textObj.transform.SetParent(buttonObj.transform, false);
             var textComp = textObj.AddComponent<TextMeshProUGUI>();
@@ -494,18 +552,19 @@ namespace LethalMic.UI.Components
             {
                 textComp.text = buttonText;
                 textComp.fontSize = isCloseButton ? 24 : 16;
-                textComp.color = _lcTextColor;
+                textComp.color = Color.white; // Force white text for readability
                 textComp.alignment = TextAlignmentOptions.Center;
                 var textRect = textComp.GetComponent<RectTransform>();
                 if (textRect != null)
                 {
                     textRect.anchorMin = Vector2.zero;
                     textRect.anchorMax = Vector2.one;
-                    textRect.offsetMin = Vector2.zero;
-                    textRect.offsetMax = Vector2.zero;
+                    textRect.offsetMin = new Vector2(8, 2); // Add horizontal and vertical padding
+                    textRect.offsetMax = new Vector2(-8, -2);
                 }
             }
-            button.targetGraphic = bgImage;
+            // Ensure border is behind everything else
+            borderObj.transform.SetSiblingIndex(0);
             button.onClick.AddListener(onClick);
         }
         
@@ -565,6 +624,7 @@ namespace LethalMic.UI.Components
         private void OnCalibrateClicked()
         {
             if (_isCalibrating) return;
+            if (_calibratingText != null) _calibratingText.gameObject.SetActive(true); // Show text
             StartCoroutine(CalibrateNoiseFloorCoroutine());
         }
         
@@ -572,11 +632,11 @@ namespace LethalMic.UI.Components
         {
             _isCalibrating = true;
             _logger.LogInfo("Starting noise floor calibration...");
-            
+            if (_calibratingText != null) _calibratingText.gameObject.SetActive(true);
             yield return new WaitForSeconds(3f);
-            
             _logger.LogInfo("Noise floor calibration complete");
             _isCalibrating = false;
+            if (_calibratingText != null) _calibratingText.gameObject.SetActive(false); // Hide text
         }
         
         private void Update()
