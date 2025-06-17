@@ -461,31 +461,30 @@ namespace LethalMic
         
         public static void UpdateAudio()
         {
-            var comms = UnityEngine.Object.FindObjectOfType<DissonanceComms>();
-            if (comms != null)
+            var pipelines = UnityEngine.Object.FindObjectsOfType<UnityEngine.Object>()
+                .Where(o => o.GetType().Name.Contains("PreprocessingPipeline"))
+                .ToArray();
+
+            foreach (var pipeline in pipelines)
             {
-                // Get the private _preprocessingPipeline field
-                var pipelineField = typeof(DissonanceComms).GetField("_preprocessingPipeline", BindingFlags.NonPublic | BindingFlags.Instance);
-                if (pipelineField != null)
+                var type = pipeline.GetType();
+                var fields = type.GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                var props = type.GetProperties(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+
+                foreach (var field in fields)
                 {
-                    var pipeline = pipelineField.GetValue(comms);
-                    if (pipeline != null)
+                    var value = field.GetValue(pipeline);
+                    UnityEngine.Debug.Log($"[LethalMic] Pipeline {type.FullName} field {field.Name}: {value}");
+                }
+                foreach (var prop in props)
+                {
+                    if (prop.CanRead)
                     {
-                        // Get the private _amplitudeRms field from the pipeline
-                        var amplitudeField = pipeline.GetType().GetField("_amplitudeRms", BindingFlags.NonPublic | BindingFlags.Instance);
-                        if (amplitudeField != null)
-                        {
-                            float amplitude = (float)amplitudeField.GetValue(pipeline);
-                            if (uiInstance != null)
-                            {
-                                uiInstance.UpdateMicStatus(selectedDevice, "Connected", amplitude);
-                                uiInstance.UpdateCPUUsage(cpuUsage);
-                            }
-                        }
+                        var value = prop.GetValue(pipeline, null);
+                        UnityEngine.Debug.Log($"[LethalMic] Pipeline {type.FullName} property {prop.Name}: {value}");
                     }
                 }
             }
-            // (Keep the rest of your audio processing logic for filters, but do not use the RMS value for the UI bar)
         }
         
         // Public methods for external access
