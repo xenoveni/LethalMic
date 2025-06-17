@@ -53,6 +53,7 @@ namespace LethalMic.UI.Components
         private UIButton _calibrateButton;
         private UIImage _levelMeterBackground;
         private UIImage _levelMeterFill;
+        private UIImage _peakIndicator;
         private TextMeshProUGUI _noInputWarningText;
         
         // Lethal Company style colors
@@ -198,6 +199,18 @@ namespace LethalMic.UI.Components
             meterFillRect.pivot = new Vector2(0, 0.5f);
             meterFillRect.anchoredPosition = Vector2.zero;
             meterFillRect.sizeDelta = Vector2.zero;
+
+            // Peak indicator
+            var peakIndicatorObj = new GameObject("PeakIndicator");
+            peakIndicatorObj.transform.SetParent(meterBgObj.transform, false);
+            _peakIndicator = peakIndicatorObj.AddComponent<UnityEngine.UI.Image>();
+            _peakIndicator.color = Color.yellow;
+            var peakIndicatorRect = _peakIndicator.GetComponent<RectTransform>();
+            peakIndicatorRect.sizeDelta = new Vector2(2, 24);
+            peakIndicatorRect.anchorMin = new Vector2(0, 0);
+            peakIndicatorRect.anchorMax = new Vector2(0, 1);
+            peakIndicatorRect.pivot = new Vector2(0.5f, 0.5f);
+            peakIndicatorRect.anchoredPosition = Vector2.zero;
 
             // Threshold handle (draggable)
             var thresholdHandleObj = new GameObject("ThresholdHandle");
@@ -669,22 +682,51 @@ namespace LethalMic.UI.Components
         {
             if (_levelMeterFill != null)
             {
-                // Bar fill: left to right, based on normalized mic level
-                float normalizedLevel = Mathf.Clamp01(_currentMicLevel);
+                // Convert linear level to dB for better visualization
+                float dbLevel = 20 * Mathf.Log10(Mathf.Max(_currentMicLevel, 0.0001f));
+                float normalizedLevel = Mathf.Clamp01((dbLevel + 60f) / 60f); // Map -60dB to 0dB to 0-1 range
+                
+                // Update fill bar
                 _levelMeterFill.rectTransform.anchorMin = new Vector2(0, 0);
                 _levelMeterFill.rectTransform.anchorMax = new Vector2(normalizedLevel, 1);
-                // Highlight the bar if above threshold
-                _levelMeterFill.color = normalizedLevel > _voiceThreshold ? Color.green : _lcAccentColor;
+                
+                // Color coding based on level
+                if (normalizedLevel > 0.9f) // Above -6dB
+                {
+                    _levelMeterFill.color = Color.red; // Warning color for high levels
+                }
+                else if (normalizedLevel > _voiceThreshold)
+                {
+                    _levelMeterFill.color = Color.green; // Active voice
+                }
+                else
+                {
+                    _levelMeterFill.color = _lcAccentColor; // Normal level
+                }
+                
+                // Add peak indicator
+                float peakDb = 20 * Mathf.Log10(Mathf.Max(_peakMicLevel, 0.0001f));
+                float normalizedPeak = Mathf.Clamp01((peakDb + 60f) / 60f);
+                if (_peakIndicator != null)
+                {
+                    _peakIndicator.rectTransform.anchorMin = new Vector2(normalizedPeak - 0.01f, 0);
+                    _peakIndicator.rectTransform.anchorMax = new Vector2(normalizedPeak + 0.01f, 1);
+                }
             }
+            
             if (_thresholdHandleRect != null)
             {
-                // Handle stays at threshold position
-                _thresholdHandleRect.anchorMin = new Vector2(_voiceThreshold, 0);
-                _thresholdHandleRect.anchorMax = new Vector2(_voiceThreshold, 1);
+                // Convert threshold to dB scale
+                float thresholdDb = 20 * Mathf.Log10(Mathf.Max(_voiceThreshold, 0.0001f));
+                float normalizedThreshold = Mathf.Clamp01((thresholdDb + 60f) / 60f);
+                
+                _thresholdHandleRect.anchorMin = new Vector2(normalizedThreshold, 0);
+                _thresholdHandleRect.anchorMax = new Vector2(normalizedThreshold, 1);
             }
+            
             if (_noInputWarningText != null)
             {
-                _noInputWarningText.text = _currentMicLevel < 0.001f ? "No input detected! Check your microphone." : "";
+                _noInputWarningText.gameObject.SetActive(_currentMicLevel < 0.001f);
             }
         }
         

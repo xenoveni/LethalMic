@@ -37,11 +37,13 @@ namespace LethalMic
         private static string selectedDevice;
         private static bool isRecording = false;
         private static float currentMicrophoneLevel = -60f;
+        private static float peakMicLevel = -60f;
         private static bool voiceDetected = false;
         private static float noiseFloor = -60f;
         private static float cpuUsage = 0f;
         private static int audioFrameCount = 0;
         private static int errorCount = 0;
+        private static int lastMicPosition = 0; // Track last sample position
         
         // Configuration
         private static ConfigEntry<bool> EnableMod;
@@ -406,6 +408,7 @@ namespace LethalMic
                 microphoneClip = Microphone.Start(selectedDevice, true, 1, 44100);
                 isRecording = true;
                 audioFrameCount = 0;
+                lastMicPosition = 0; // Reset position
                 GetLogger().LogInfo($"Recording started on device: {selectedDevice ?? "default"}");
                 GetLogger().LogInfo($"Clip frequency: {microphoneClip.frequency}Hz");
                 GetLogger().LogInfo($"Clip channels: {microphoneClip.channels}");
@@ -432,6 +435,7 @@ namespace LethalMic
                 
                 Microphone.End(selectedDevice);
                 isRecording = false;
+                lastMicPosition = 0; // Reset position
                 
                 if (microphoneClip != null)
                 {
@@ -456,29 +460,80 @@ namespace LethalMic
         
         public static void UpdateAudio()
         {
-            var pipelines = UnityEngine.Object.FindObjectsOfType<UnityEngine.Object>()
-                .Where(o => o.GetType().Name.Contains("PreprocessingPipeline"))
-                .ToArray();
+            if (!isRecording || microphoneClip == null) return;
 
-            foreach (var pipeline in pipelines)
+            try
             {
-                var type = pipeline.GetType();
-                var fields = type.GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
-                var props = type.GetProperties(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                int bufferSize = microphoneClip.samples;
+                int position = Microphone.GetPosition(selectedDevice);
+                if (position < 0 || position >= bufferSize)
+                {
+                    lastMicPosition = 0;
+                    return;
+                }
 
-                foreach (var field in fields)
+                int sampleCount = position - lastMicPosition;
+                if (sampleCount < 0) sampleCount += bufferSize; // handle wrap-around
+
+                // Clamp sampleCount to buffer size
+                if (sampleCount <= 0 || sampleCount > bufferSize)
                 {
-                    var value = field.GetValue(pipeline);
-                    UnityEngine.Debug.Log($"[LethalMic] Pipeline {type.FullName} field {field.Name}: {value}");
+                    lastMicPosition = position;
+                    return;
                 }
-                foreach (var prop in props)
+
+                float[] data = new float[sampleCount];
+                bool gotData = microphoneClip.GetData(data, lastMicPosition);
+                if (!gotData || data.Length == 0)
                 {
-                    if (prop.CanRead)
-                    {
-                        var value = prop.GetValue(pipeline, null);
-                        UnityEngine.Debug.Log($"[LethalMic] Pipeline {type.FullName} property {prop.Name}: {value}");
-                    }
+                    lastMicPosition = position;
+                    return;
                 }
+
+                // Calculate RMS level
+                float sum = 0f;
+                for (int i = 0; i < data.Length; i++)
+                    sum += data[i] * data[i];
+                float rms = Mathf.Sqrt(sum / data.Length);
+
+                // Apply gain
+                rms *= MicrophoneGain.Value;
+
+                // Clamp RMS to avoid issues from too loud noises (e.g., max 1.0f)
+                rms = Mathf.Clamp(rms, 0f, 1.0f);
+
+                // Update current level
+                currentMicrophoneLevel = rms;
+
+                // Update peak level with decay
+                peakMicLevel = Mathf.Max(peakMicLevel * 0.95f, currentMicrophoneLevel);
+
+                // Update voice detection
+                voiceDetected = currentMicrophoneLevel > NoiseGateThreshold.Value;
+
+                // Update noise floor
+                if (currentMicrophoneLevel < noiseFloor || noiseFloor == 0f)
+                {
+                    noiseFloor = Mathf.Lerp(noiseFloor, currentMicrophoneLevel, 0.01f);
+                }
+
+                // Update CPU usage
+                cpuUsage = Mathf.Lerp(cpuUsage, currentMicrophoneLevel * 100f, Time.deltaTime);
+
+                // Update UI if available
+                if (uiInstance != null)
+                {
+                    uiInstance.UpdateMicStatus(selectedDevice, "Connected", currentMicrophoneLevel);
+                    uiInstance.UpdateCPUUsage(cpuUsage);
+                }
+
+                audioFrameCount++;
+                lastMicPosition = position;
+            }
+            catch (Exception ex)
+            {
+                GetLogger().LogError($"Error in UpdateAudio: {ex}");
+                errorCount++;
             }
         }
         
