@@ -616,37 +616,37 @@ namespace LethalMic.UI.Components
         private void OnGainChanged(float value)
         {
             LethalMic.LethalMicStatic.SetMicrophoneGain(value);
-            LogThrottled($"[UI] GainSlider changed: value={value:F2}");
+            LogThrottled($"Gain changed to: {value}");
         }
         
         private void OnNoiseGateChanged(bool value)
         {
             LethalMic.LethalMicStatic.SetNoiseGateEnabled(value);
-            LogThrottled($"[UI] Noise Gate changed: {value}");
+            LogThrottled($"Noise gate changed to: {value}");
         }
         
         private void OnCompressionChanged(bool value)
         {
             LethalMic.LethalMicStatic.SetCompressionEnabled(value);
-            LogThrottled($"[UI] Compression changed: {value}");
+            LogThrottled($"Compression changed to: {value}");
         }
         
         private void OnCompressionRatioChanged(float value)
         {
             LethalMic.LethalMicStatic.SetCompressionRatio(value);
-            LogThrottled($"[UI] Compression ratio changed: {value:F1}:1");
+            LogThrottled($"Compression ratio changed to: {value}");
         }
         
         private void OnAttackTimeChanged(float value)
         {
             LethalMic.LethalMicStatic.SetAttackTime(value);
-            LogThrottled($"[UI] Attack time changed: {value:F0}ms");
+            LogThrottled($"Attack time changed to: {value}");
         }
         
         private void OnReleaseTimeChanged(float value)
         {
             LethalMic.LethalMicStatic.SetReleaseTime(value);
-            LogThrottled($"[UI] Release time changed: {value:F0}ms");
+            LogThrottled($"Release time changed to: {value}");
         }
         
         private void OnCalibrateClicked()

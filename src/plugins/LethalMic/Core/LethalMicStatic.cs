@@ -111,6 +111,9 @@ namespace LethalMic
                 HarmonyInstance.PatchAll();
                 GetLogger().LogInfo("Harmony patches applied successfully");
                 
+                // Initialize voice chat patch
+                LethalMic.Patches.VoiceChatPatch.Initialize(Logger);
+                
                 // Initialize UI
                 InitializeUI();
                 
@@ -139,6 +142,9 @@ namespace LethalMic
             try
             {
                 GetLogger().LogInfo("Initializing audio system...");
+                
+                // Initialize the StaticAudioManager instead of direct microphone handling
+                StaticAudioManager.Initialize(Logger);
                 
                 // Get available microphones
                 var devices = Microphone.devices;
@@ -182,79 +188,26 @@ namespace LethalMic
                     }
                 }
 
-                // Initialize microphone with proper error handling
-                try
+                // Start recording through StaticAudioManager
+                StaticAudioManager.StartRecording();
+
+                GetLogger().LogInfo($"Successfully initialized audio system with device: {selectedDevice}");
+                
+                // Update UI with success status
+                if (uiInstance != null)
                 {
-                    microphoneClip = Microphone.Start(selectedDevice, true, 10, 44100);
-                    if (microphoneClip == null)
-                    {
-                        throw new Exception("Microphone.Start returned null");
-                    }
-
-                    GetLogger().LogInfo($"Successfully initialized microphone:");
-                    GetLogger().LogInfo($"- Device: {selectedDevice}");
-                    GetLogger().LogInfo($"- Sample rate: {microphoneClip.frequency}Hz");
-                    GetLogger().LogInfo($"- Channels: {microphoneClip.channels}");
-                    GetLogger().LogInfo($"- Length: {microphoneClip.length} samples");
-
-                    // Update UI with success status
-                    if (uiInstance != null)
-                    {
-                        uiInstance.UpdateMicStatus(selectedDevice, "Connected", 0f);
-                    }
-
-                    isRecording = true;
-                }
-                catch (Exception micEx)
-                {
-                    GetLogger().LogError($"Failed to initialize microphone: {micEx.Message}");
-                    GetLogger().LogError($"Stack trace: {micEx.StackTrace}");
-                    
-                    // Try to recover by attempting to use the default device
-                    if (selectedDevice != devices[0])
-                    {
-                        GetLogger().LogInfo("Attempting to recover using default device...");
-                        selectedDevice = devices[0];
-                        try
-                        {
-                            microphoneClip = Microphone.Start(selectedDevice, true, 10, 44100);
-                            if (microphoneClip != null)
-                            {
-                                GetLogger().LogInfo("Successfully recovered using default device");
-                                isRecording = true;
-                                if (uiInstance != null)
-                                {
-                                    uiInstance.UpdateMicStatus(selectedDevice, "Connected", 0f);
-                                }
-                            }
-                        }
-                        catch (Exception recoveryEx)
-                        {
-                            GetLogger().LogError($"Recovery attempt failed: {recoveryEx.Message}");
-                            if (uiInstance != null)
-                            {
-                                uiInstance.UpdateMicStatus(selectedDevice, "Error", 0f);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (uiInstance != null)
-                        {
-                            uiInstance.UpdateMicStatus(selectedDevice, "Error", 0f);
-                        }
-                    }
+                    uiInstance.UpdateMicStatus(selectedDevice, "Connected", 0f);
                 }
             }
             catch (Exception ex)
             {
-                GetLogger().LogError($"Failed to initialize audio system: {ex}");
+                GetLogger().LogError($"Error initializing audio system: {ex}");
                 GetLogger().LogError($"Stack trace: {ex.StackTrace}");
                 errorCount++;
                 
                 if (uiInstance != null)
                 {
-                    uiInstance.UpdateMicStatus("None", "Error", 0f);
+                    uiInstance.UpdateMicStatus("Error", "Initialization Failed", 0f);
                 }
             }
         }
@@ -396,22 +349,21 @@ namespace LethalMic
         // Audio processing methods
         public static void StartRecording()
         {
-            if (!IsInitialized || !EnableMod.Value || isRecording)
+            if (!EnableMod.Value)
             {
-                GetLogger().LogInfo($"StartRecording skipped - Initialized: {IsInitialized}, Enabled: {EnableMod.Value}, Recording: {isRecording}");
+                GetLogger().LogInfo("StartRecording skipped - mod disabled");
                 return;
             }
+            
             try
             {
                 GetLogger().LogInfo("Starting microphone recording...");
-                // Use a 1 second buffer for low latency
-                microphoneClip = Microphone.Start(selectedDevice, true, 1, 44100);
+                
+                // Use StaticAudioManager for recording
+                StaticAudioManager.StartRecording();
                 isRecording = true;
-                audioFrameCount = 0;
-                lastMicPosition = 0; // Reset position
-                GetLogger().LogInfo($"Recording started on device: {selectedDevice ?? "default"}");
-                GetLogger().LogInfo($"Clip frequency: {microphoneClip.frequency}Hz");
-                GetLogger().LogInfo($"Clip channels: {microphoneClip.channels}");
+                
+                GetLogger().LogInfo("Microphone recording started successfully");
             }
             catch (Exception ex)
             {
@@ -433,19 +385,11 @@ namespace LethalMic
             {
                 GetLogger().LogInfo("Stopping microphone recording...");
                 
-                Microphone.End(selectedDevice);
+                // Use StaticAudioManager for stopping
+                StaticAudioManager.StopRecording();
                 isRecording = false;
-                lastMicPosition = 0; // Reset position
-                
-                if (microphoneClip != null)
-                {
-                    GetLogger().LogInfo($"Destroying audio clip - Length: {microphoneClip.length}s");
-                    UnityEngine.Object.Destroy(microphoneClip);
-                    microphoneClip = null;
-                }
                 
                 GetLogger().LogInfo("Microphone recording stopped");
-                GetLogger().LogInfo($"Total audio frames processed: {audioFrameCount}");
             }
             catch (Exception ex)
             {
@@ -460,75 +404,21 @@ namespace LethalMic
         
         public static void UpdateAudio()
         {
-            if (!isRecording || microphoneClip == null) return;
+            if (!isRecording) return;
 
             try
             {
-                int bufferSize = microphoneClip.samples;
-                int position = Microphone.GetPosition(selectedDevice);
-                if (position < 0 || position >= bufferSize)
-                {
-                    lastMicPosition = 0;
-                    return;
-                }
-
-                int sampleCount = position - lastMicPosition;
-                if (sampleCount < 0) sampleCount += bufferSize; // handle wrap-around
-
-                // Clamp sampleCount to buffer size
-                if (sampleCount <= 0 || sampleCount > bufferSize)
-                {
-                    lastMicPosition = position;
-                    return;
-                }
-
-                float[] data = new float[sampleCount];
-                bool gotData = microphoneClip.GetData(data, lastMicPosition);
-                if (!gotData || data.Length == 0)
-                {
-                    lastMicPosition = position;
-                    return;
-                }
-
-                // Calculate RMS level
-                float sum = 0f;
-                for (int i = 0; i < data.Length; i++)
-                    sum += data[i] * data[i];
-                float rms = Mathf.Sqrt(sum / data.Length);
-
-                // Apply gain
-                rms *= MicrophoneGain.Value;
-
-                // Clamp RMS to avoid issues from too loud noises (e.g., max 1.0f)
-                rms = Mathf.Clamp(rms, 0f, 1.0f);
-
-                // Update current level
-                currentMicrophoneLevel = rms;
-
-                // Update peak level with decay
-                peakMicLevel = Mathf.Max(peakMicLevel * 0.95f, currentMicrophoneLevel);
-
-                // Update voice detection
-                voiceDetected = currentMicrophoneLevel > NoiseGateThreshold.Value;
-
-                // Update noise floor
-                if (currentMicrophoneLevel < noiseFloor || noiseFloor == 0f)
-                {
-                    noiseFloor = Mathf.Lerp(noiseFloor, currentMicrophoneLevel, 0.01f);
-                }
-
-                // Update CPU usage
-                cpuUsage = Mathf.Lerp(cpuUsage, currentMicrophoneLevel * 100f, Time.deltaTime);
-
-                // Update UI if available
-                if (uiInstance != null)
-                {
-                    uiInstance.UpdateMicStatus(selectedDevice, "Connected", currentMicrophoneLevel);
-                    uiInstance.UpdateCPUUsage(cpuUsage);
-                }
-
+                // Use StaticAudioManager for audio processing
+                StaticAudioManager.ProcessAudio();
+                
+                // Get updated values from StaticAudioManager
+                currentMicrophoneLevel = StaticAudioManager.GetCurrentMicrophoneLevel();
+                peakMicLevel = StaticAudioManager.GetPeakMicrophoneLevel();
+                voiceDetected = StaticAudioManager.IsVoiceDetected();
+                noiseFloor = StaticAudioManager.GetNoiseFloor();
+                cpuUsage = StaticAudioManager.GetCPUUsage();
+                
                 audioFrameCount++;
-                lastMicPosition = position;
             }
             catch (Exception ex)
             {
@@ -556,6 +446,9 @@ namespace LethalMic
             {
                 GetLogger().LogInfo("Cleaning up LethalMicStatic...");
                 
+                // Cleanup audio manager
+                StaticAudioManager.Cleanup();
+                
                 // Cleanup UI
                 if (uiInstance != null)
                 {
@@ -578,34 +471,94 @@ namespace LethalMic
 
         // Add these methods for UI interaction
         public static float GetMicrophoneGain() => MicrophoneGain?.Value ?? 1.0f;
-        public static void SetMicrophoneGain(float value) { if (MicrophoneGain != null) MicrophoneGain.Value = value; }
+        public static void SetMicrophoneGain(float value) 
+        { 
+            if (MicrophoneGain != null) 
+            {
+                MicrophoneGain.Value = value;
+                // Update processor settings when gain changes
+                StaticAudioManager.UpdateProcessorSettings();
+            }
+        }
+        
         public static float GetNoiseGateThreshold() => NoiseGateThreshold?.Value ?? 0.01f;
-        public static void SetNoiseGateThreshold(float value) { if (NoiseGateThreshold != null) NoiseGateThreshold.Value = value; }
+        public static void SetNoiseGateThreshold(float value) 
+        { 
+            if (NoiseGateThreshold != null) 
+            {
+                NoiseGateThreshold.Value = value;
+                // Update processor settings when threshold changes
+                StaticAudioManager.UpdateProcessorSettings();
+            }
+        }
+        
         public static bool GetNoiseGateEnabled() => NoiseGate?.Value ?? true;
-        public static void SetNoiseGateEnabled(bool value) { if (NoiseGate != null) NoiseGate.Value = value; }
+        public static void SetNoiseGateEnabled(bool value) 
+        { 
+            if (NoiseGate != null) 
+            {
+                NoiseGate.Value = value;
+                // Update processor settings when noise gate changes
+                StaticAudioManager.UpdateProcessorSettings();
+            }
+        }
 
         public static void SetInputDevice(string deviceName)
         {
             if (InputDevice != null) InputDevice.Value = deviceName;
             selectedDevice = deviceName;
-            StopRecording();
-            StartRecording();
+            StaticAudioManager.SetInputDevice(deviceName);
         }
 
         public static string GetInputDevice() => selectedDevice;
 
         // Add compression-related methods
         public static bool GetCompressionEnabled() => Compression?.Value ?? true;
-        public static void SetCompressionEnabled(bool value) { if (Compression != null) Compression.Value = value; }
+        public static void SetCompressionEnabled(bool value) 
+        { 
+            if (Compression != null) 
+            {
+                Compression.Value = value;
+                // Update processor settings when compression changes
+                StaticAudioManager.UpdateProcessorSettings();
+            }
+        }
         
         public static float GetCompressionRatio() => CompressionRatio?.Value ?? 4f;
-        public static void SetCompressionRatio(float value) { if (CompressionRatio != null) CompressionRatio.Value = value; }
+        public static void SetCompressionRatio(float value) 
+        { 
+            if (CompressionRatio != null) 
+            {
+                CompressionRatio.Value = value;
+                // Update processor settings when compression ratio changes
+                StaticAudioManager.UpdateProcessorSettings();
+            }
+        }
         
         public static float GetAttackTime() => AttackTime?.Value ?? 10f;
-        public static void SetAttackTime(float value) { if (AttackTime != null) AttackTime.Value = value; }
+        public static void SetAttackTime(float value) 
+        { 
+            if (AttackTime != null) 
+            {
+                AttackTime.Value = value;
+                // Update processor settings when attack time changes
+                StaticAudioManager.UpdateProcessorSettings();
+            }
+        }
         
         public static float GetReleaseTime() => ReleaseTime?.Value ?? 100f;
-        public static void SetReleaseTime(float value) { if (ReleaseTime != null) ReleaseTime.Value = value; }
+        public static void SetReleaseTime(float value) 
+        { 
+            if (ReleaseTime != null) 
+            {
+                ReleaseTime.Value = value;
+                // Update processor settings when release time changes
+                StaticAudioManager.UpdateProcessorSettings();
+            }
+        }
+
+        // Method to get UI instance for StaticAudioManager
+        public static LethalMicUI GetUIIInstance() => uiInstance;
     }
 
     // Add this class at the end of the file, outside LethalMicStatic
