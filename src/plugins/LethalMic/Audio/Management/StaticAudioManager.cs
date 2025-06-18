@@ -518,30 +518,8 @@ namespace LethalMic
 
         private static float[] GetSpeakerAudio(int requiredLength)
         {
-            if (!/*isCapturingSpeakers*/ false) return null;
-            
-            try
-            {
-                // For now, we'll simulate speaker audio by creating a buffer
-                // In a real implementation, this would capture actual system audio
-                float[] speakerAudio = new float[requiredLength];
-                
-                // Simulate some speaker audio (this is where you'd get real audio)
-                // For testing, we'll create a simple sine wave to simulate voice
-                for (int i = 0; i < requiredLength; i++)
-                {
-                    // Create a simple simulation of speaker audio
-                    // In reality, this would be the actual audio coming from your speakers
-                    speakerAudio[i] = 0f; // For now, assume no speaker audio
-                }
-                
-                return speakerAudio;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"Error getting speaker audio: {ex}");
-                return null;
-            }
+            // Speaker audio capture not implemented yet
+            return null;
         }
 
         // Method to process audio buffer from voice chat system

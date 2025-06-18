@@ -78,8 +78,21 @@ namespace LethalMic.UI.Components
         private float _voiceThreshold = 0.1f; // Default threshold
         private RectTransform _thresholdHandleRect;
         
-        // Add field for echo suppression mode dropdown
-        private UnityEngine.UI.Dropdown _echoModeDropdown;
+        // Add fields for echo suppression mode radio buttons
+        private UIToggle _headphonesRadio;
+        private UIToggle _stereoMixRadio;
+        private UIToggle _wasapiRadio;
+        private List<UIToggle> _echoModeRadios;
+        private TextMeshProUGUI _echoModeHelpText;
+        
+        // Add a field to store the echo mode
+        // private LethalMicStatic.EchoSuppressionMode _currentEchoMode = LethalMicStatic.EchoSuppressionMode.Headphones;
+        
+        // Add a field to store the echo suppression mode
+        // private float _noiseGateThreshold = 0.1f;
+        
+        // Add a field to store the echo suppression mode
+        private bool _isDraggingThreshold = false;
         
         public bool IsVisible => _isVisible;
         
@@ -221,32 +234,34 @@ namespace LethalMic.UI.Components
             var thresholdHandleImage = thresholdHandleObj.AddComponent<UnityEngine.UI.Image>();
             thresholdHandleImage.color = Color.yellow;
             _thresholdHandleRect = thresholdHandleObj.GetComponent<RectTransform>();
-            _thresholdHandleRect.sizeDelta = new Vector2(6, 28);
-            _thresholdHandleRect.anchorMin = new Vector2(_voiceThreshold, 0);
-            _thresholdHandleRect.anchorMax = new Vector2(_voiceThreshold, 1);
+            _thresholdHandleRect.sizeDelta = new Vector2(8, 32);
+            _thresholdHandleRect.anchorMin = new Vector2(0, 0.5f);
+            _thresholdHandleRect.anchorMax = new Vector2(0, 0.5f);
             _thresholdHandleRect.pivot = new Vector2(0.5f, 0.5f);
-            _thresholdHandleRect.anchoredPosition = Vector2.zero;
-
-            // Add drag events to the threshold handle
+            _thresholdHandleRect.anchoredPosition = new Vector2(0, 0);
+            // Add EventTrigger for drag
             var eventTrigger = thresholdHandleObj.AddComponent<UnityEngine.EventSystems.EventTrigger>();
             var entryBegin = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown };
-            entryBegin.callback.AddListener((data) => { });
+            entryBegin.callback.AddListener((data) => { _isDraggingThreshold = true; });
             eventTrigger.triggers.Add(entryBegin);
-            var entryEnd = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
-            entryEnd.callback.AddListener((data) => { });
-            eventTrigger.triggers.Add(entryEnd);
             var entryDrag = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.Drag };
             entryDrag.callback.AddListener((data) => {
-                var pointerData = (UnityEngine.EventSystems.PointerEventData)data;
-                var localPos = Vector2.zero;
-                RectTransformUtility.ScreenPointToLocalPointInRectangle(meterBgRect, pointerData.position, pointerData.pressEventCamera, out localPos);
-                float normalized = Mathf.Clamp01((localPos.x + meterBgRect.rect.width / 2) / meterBgRect.rect.width);
-                _voiceThreshold = normalized;
-                UpdateThresholdHandle();
-                // Save threshold to config if needed
-                if (_config != null) _config.Bind("Audio", "Threshold", _voiceThreshold, "Voice activation threshold").Value = _voiceThreshold;
+                var pointerData = data as UnityEngine.EventSystems.PointerEventData;
+                if (pointerData != null)
+                {
+                    Vector2 localMousePos;
+                    RectTransformUtility.ScreenPointToLocalPointInRectangle(_levelMeterBackground.rectTransform, pointerData.position, null, out localMousePos);
+                    float percent = Mathf.Clamp01((localMousePos.x + _levelMeterBackground.rectTransform.rect.width / 2) / _levelMeterBackground.rectTransform.rect.width);
+                    _voiceThreshold = percent;
+                    LethalMicStatic.SetNoiseGateThreshold(_voiceThreshold);
+                    UpdateThresholdHandle();
+                }
             });
             eventTrigger.triggers.Add(entryDrag);
+            var entryEnd = new UnityEngine.EventSystems.EventTrigger.Entry { eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp };
+            entryEnd.callback.AddListener((data) => { _isDraggingThreshold = false; });
+            eventTrigger.triggers.Add(entryEnd);
+            UpdateThresholdHandle();
 
             // Level text
             var levelObj = new GameObject("LevelText");
@@ -324,41 +339,35 @@ namespace LethalMic.UI.Components
             _calibratingText.alignment = TextAlignmentOptions.Center;
             _calibratingText.gameObject.SetActive(false);
 
-            // Echo/Noise Suppression Mode dropdown
-            var echoModeContainer = new GameObject("EchoSuppressionModeContainer");
-            echoModeContainer.transform.SetParent(parent, false);
-            var echoModeLayout = echoModeContainer.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
-            echoModeLayout.childAlignment = TextAnchor.MiddleLeft;
-            echoModeLayout.spacing = 12f;
-            echoModeLayout.padding = new RectOffset(0, 0, 0, 0);
-            // Label
+            // Echo/Noise Suppression Mode section
+            var echoModeSection = new GameObject("EchoSuppressionModeSection");
+            echoModeSection.transform.SetParent(parent, false);
+            var echoModeSectionLayout = echoModeSection.AddComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            echoModeSectionLayout.childAlignment = TextAnchor.UpperLeft;
+            echoModeSectionLayout.spacing = 6f;
+            echoModeSectionLayout.padding = new RectOffset(0, 0, 0, 0);
+            // Title
             var echoModeLabelObj = new GameObject("EchoSuppressionModeLabel");
-            echoModeLabelObj.transform.SetParent(echoModeContainer.transform, false);
+            echoModeLabelObj.transform.SetParent(echoModeSection.transform, false);
             var echoModeLabel = echoModeLabelObj.AddComponent<TextMeshProUGUI>();
             echoModeLabel.text = "Echo/Noise Suppression Mode:";
             echoModeLabel.fontSize = 18;
             echoModeLabel.color = _lcTextColor;
             echoModeLabel.alignment = TextAlignmentOptions.Left;
-            // Dropdown (UnityEngine.UI.Dropdown)
-            var echoModeDropdownObj = new GameObject("EchoSuppressionModeDropdown");
-            echoModeDropdownObj.transform.SetParent(echoModeContainer.transform, false);
-            _echoModeDropdown = echoModeDropdownObj.AddComponent<UnityEngine.UI.Dropdown>();
-            _echoModeDropdown.options = new List<UnityEngine.UI.Dropdown.OptionData>
-            {
-                new UnityEngine.UI.Dropdown.OptionData("Headphones (Recommended)"),
-                new UnityEngine.UI.Dropdown.OptionData("Stereo Mix (if available)"),
-                new UnityEngine.UI.Dropdown.OptionData("WASAPI Loopback (Advanced)")
-            };
-            _echoModeDropdown.value = (int)LethalMicStatic.GetEchoSuppressionMode();
-            _echoModeDropdown.onValueChanged.AddListener(OnEchoModeChanged);
-            // Optionally, add a help text below
+            // Radio buttons (vertical)
+            CreateRadio("Headphones (Recommended)", OnHeadphonesRadio, out _headphonesRadio, echoModeSection.transform);
+            CreateRadio("Stereo Mix (if available)", OnStereoMixRadio, out _stereoMixRadio, echoModeSection.transform);
+            CreateRadio("WASAPI Loopback (Advanced)", OnWasapiRadio, out _wasapiRadio, echoModeSection.transform);
+            _echoModeRadios = new List<UIToggle> { _headphonesRadio, _stereoMixRadio, _wasapiRadio };
+            SetEchoModeRadios((int)LethalMicStatic.GetEchoSuppressionMode());
+            // Help text
             var helpTextObj = new GameObject("EchoSuppressionHelpText");
-            helpTextObj.transform.SetParent(parent, false);
-            var helpText = helpTextObj.AddComponent<TextMeshProUGUI>();
-            helpText.text = "Headphones: best quality, no echo. Stereo Mix: uses system output as reference. WASAPI: advanced, Windows only.";
-            helpText.fontSize = 14;
-            helpText.color = _lcTextColor;
-            helpText.alignment = TextAlignmentOptions.Left;
+            helpTextObj.transform.SetParent(echoModeSection.transform, false);
+            _echoModeHelpText = helpTextObj.AddComponent<TextMeshProUGUI>();
+            _echoModeHelpText.text = "Headphones: best quality, no echo. Stereo Mix: uses system output as reference. WASAPI: advanced, Windows only.";
+            _echoModeHelpText.fontSize = 14;
+            _echoModeHelpText.color = _lcTextColor;
+            _echoModeHelpText.alignment = TextAlignmentOptions.Left;
         }
         
         private void CreateSlider(string labelText, float minValue, float maxValue, float initialValue, 
@@ -643,6 +652,34 @@ namespace LethalMic.UI.Components
             button.onClick.AddListener(onClick);
         }
         
+        private void CreateRadio(string label, UnityEngine.Events.UnityAction<bool> onValueChanged, out UIToggle toggle, Transform parent)
+        {
+            var container = new GameObject($"{label}RadioContainer");
+            container.transform.SetParent(parent, false);
+            toggle = container.AddComponent<UIToggle>();
+            toggle.isOn = false;
+            toggle.onValueChanged.AddListener(onValueChanged);
+            var labelObj = new GameObject($"{label}RadioLabel");
+            labelObj.transform.SetParent(container.transform, false);
+            var labelText = labelObj.AddComponent<TextMeshProUGUI>();
+            labelText.text = label;
+            labelText.fontSize = 16;
+            labelText.color = _lcTextColor;
+            labelText.alignment = TextAlignmentOptions.Left;
+        }
+        
+        private void SetEchoModeRadios(int selected)
+        {
+            for (int i = 0; i < _echoModeRadios.Count; i++)
+            {
+                _echoModeRadios[i].isOn = (i == selected);
+            }
+        }
+        
+        private void OnHeadphonesRadio(bool value) { if (value) { LethalMicStatic.SetEchoSuppressionMode(LethalMicStatic.EchoSuppressionMode.Headphones); SetEchoModeRadios(0); } }
+        private void OnStereoMixRadio(bool value) { if (value) { LethalMicStatic.SetEchoSuppressionMode(LethalMicStatic.EchoSuppressionMode.StereoMix); SetEchoModeRadios(1); } }
+        private void OnWasapiRadio(bool value) { if (value) { LethalMicStatic.SetEchoSuppressionMode(LethalMicStatic.EchoSuppressionMode.WasapiLoopback); SetEchoModeRadios(2); } }
+        
         private void LoadSettings()
         {
             if (_config == null) return;
@@ -650,10 +687,7 @@ namespace LethalMic.UI.Components
             var gain = _config.Bind("Audio", "Gain", 1.0f, "Microphone gain").Value;
             
             if (_gainSlider != null) _gainSlider.value = gain;
-            if (_echoModeDropdown != null)
-            {
-                _echoModeDropdown.value = (int)LethalMicStatic.GetEchoSuppressionMode();
-            }
+            SetEchoModeRadios((int)LethalMicStatic.GetEchoSuppressionMode());
         }
         
         private void OnGainChanged(float value)
@@ -719,6 +753,17 @@ namespace LethalMic.UI.Components
             
             // Update text displays
             UpdateTextDisplays();
+
+            if (_isDraggingThreshold && Input.GetMouseButton(0))
+            {
+                Vector2 localMousePos;
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(_levelMeterBackground.rectTransform, Input.mousePosition, null, out localMousePos);
+                float percent = Mathf.Clamp01((localMousePos.x + _levelMeterBackground.rectTransform.rect.width / 2) / _levelMeterBackground.rectTransform.rect.width);
+                _voiceThreshold = percent;
+                LethalMicStatic.SetNoiseGateThreshold(_voiceThreshold);
+                UpdateThresholdHandle();
+            }
+            if (Input.GetMouseButtonUp(0)) _isDraggingThreshold = false;
         }
         
         private void UpdateLevelMeter()
@@ -843,17 +888,9 @@ namespace LethalMic.UI.Components
 
         private void UpdateThresholdHandle()
         {
-            if (_thresholdHandleRect != null)
-            {
-                _thresholdHandleRect.anchorMin = new Vector2(_voiceThreshold, 0);
-                _thresholdHandleRect.anchorMax = new Vector2(_voiceThreshold, 1);
-            }
-        }
-
-        private void OnEchoModeChanged(int value)
-        {
-            var mode = (LethalMicStatic.EchoSuppressionMode)value;
-            LethalMicStatic.SetEchoSuppressionMode(mode);
+            if (_thresholdHandleRect == null || _levelMeterBackground == null) return;
+            float x = Mathf.Lerp(0, _levelMeterBackground.rectTransform.rect.width, _voiceThreshold);
+            _thresholdHandleRect.anchoredPosition = new Vector2(x - _levelMeterBackground.rectTransform.rect.width / 2, 0);
         }
     }
 }
