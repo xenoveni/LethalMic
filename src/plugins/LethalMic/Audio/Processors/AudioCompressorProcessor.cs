@@ -19,7 +19,8 @@ namespace LethalMic
         
         // Compression state
         private bool _isEnabled;
-        private float _compressionGain;
+        // Remove unused field to suppress warning
+        // private float _compressionGain;
         
         private bool _disposed = false;
         
@@ -49,7 +50,6 @@ namespace LethalMic
             CalculateCoefficients();
             
             _envelope = 0f;
-            _compressionGain = 1f;
             _isEnabled = true;
         }
         
@@ -126,7 +126,6 @@ namespace LethalMic
         public void Reset()
         {
             _envelope = 0f;
-            _compressionGain = 1f;
         }
         
         private static float DecibelToLinear(float decibel)

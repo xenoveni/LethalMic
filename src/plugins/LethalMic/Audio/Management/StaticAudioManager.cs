@@ -21,7 +21,6 @@ namespace LethalMic
         private static float peakMicLevel;
         private static float noiseFloor;
         private static bool voiceDetected;
-        private static float vadThreshold = 0.1f;
         private static float cpuUsage;
         private static int lastMicPosition = 0;
 
@@ -38,10 +37,10 @@ namespace LethalMic
         private static float[] outputBuffer;
         
         // Speaker audio capture for echo cancellation
-        private static AudioClip speakerClip;
-        private static bool isCapturingSpeakers = false;
-        private static float[] speakerBuffer;
-        private static int lastSpeakerPosition = 0;
+        // private static AudioClip speakerClip;
+        // private static bool isCapturingSpeakers = false;
+        // private static float[] speakerBuffer;
+        // private static int lastSpeakerPosition = 0;
         
         // Settings tracking for logging optimization
         private static float lastGain = -1f;
@@ -62,7 +61,6 @@ namespace LethalMic
             processedBuffer = new float[bufferSize];
             tempBuffer = new float[bufferSize];
             outputBuffer = new float[bufferSize];
-            speakerBuffer = new float[bufferSize];
             
             Logger.LogInfo($"Audio buffers initialized with size: {bufferSize}");
             
@@ -507,20 +505,20 @@ namespace LethalMic
                 
                 // For now, we'll use a dummy approach that simulates speaker audio
                 // In a full implementation, you'd capture actual system audio
-                isCapturingSpeakers = true;
+                // isCapturingSpeakers = true;
                 
                 Logger.LogInfo("Speaker capture initialized (simulated)");
             }
             catch (Exception ex)
             {
                 Logger.LogError($"Failed to start speaker capture: {ex}");
-                isCapturingSpeakers = false;
+                // isCapturingSpeakers = false;
             }
         }
 
         private static float[] GetSpeakerAudio(int requiredLength)
         {
-            if (!isCapturingSpeakers) return null;
+            if (!/*isCapturingSpeakers*/ false) return null;
             
             try
             {
@@ -562,6 +560,36 @@ namespace LethalMic
                 Logger.LogError($"Error processing audio buffer: {ex}");
                 return inputBuffer; // Return original data if processing fails
             }
+        }
+
+        public static void SetAggressiveSuppression()
+        {
+            // Enable aggressive noise gate, suppression, and compression
+            // These values should match Discord-like quality
+            LethalMicStatic.SetNoiseGateEnabled(true);
+            LethalMicStatic.SetNoiseGateThreshold(0.05f);
+            LethalMicStatic.SetCompressionEnabled(true);
+            LethalMicStatic.SetCompressionRatio(10f);
+            LethalMicStatic.SetAttackTime(2f);
+            LethalMicStatic.SetReleaseTime(50f);
+            // Enable noise suppressor if available
+            // ...
+        }
+
+        public static void SetStereoMixSuppression()
+        {
+            // TODO: Implement echo cancellation using Stereo Mix as reference
+            // For now, fallback to aggressive suppression
+            SetAggressiveSuppression();
+            // ... future: capture Stereo Mix and subtract from mic input ...
+        }
+
+        public static void SetWasapiSuppression()
+        {
+            // TODO: Implement echo cancellation using WASAPI loopback (NAudio)
+            // For now, fallback to aggressive suppression
+            SetAggressiveSuppression();
+            // ... future: capture WASAPI output and subtract from mic input ...
         }
     }
 }

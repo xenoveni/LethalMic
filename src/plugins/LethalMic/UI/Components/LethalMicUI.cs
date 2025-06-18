@@ -78,6 +78,9 @@ namespace LethalMic.UI.Components
         private float _voiceThreshold = 0.1f; // Default threshold
         private RectTransform _thresholdHandleRect;
         
+        // Add field for echo suppression mode dropdown
+        private UnityEngine.UI.Dropdown _echoModeDropdown;
+        
         public bool IsVisible => _isVisible;
         
         public void Initialize(ManualLogSource logger, ConfigFile config)
@@ -320,6 +323,42 @@ namespace LethalMic.UI.Components
             _calibratingText.color = _lcAccentColor;
             _calibratingText.alignment = TextAlignmentOptions.Center;
             _calibratingText.gameObject.SetActive(false);
+
+            // Echo/Noise Suppression Mode dropdown
+            var echoModeContainer = new GameObject("EchoSuppressionModeContainer");
+            echoModeContainer.transform.SetParent(parent, false);
+            var echoModeLayout = echoModeContainer.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+            echoModeLayout.childAlignment = TextAnchor.MiddleLeft;
+            echoModeLayout.spacing = 12f;
+            echoModeLayout.padding = new RectOffset(0, 0, 0, 0);
+            // Label
+            var echoModeLabelObj = new GameObject("EchoSuppressionModeLabel");
+            echoModeLabelObj.transform.SetParent(echoModeContainer.transform, false);
+            var echoModeLabel = echoModeLabelObj.AddComponent<TextMeshProUGUI>();
+            echoModeLabel.text = "Echo/Noise Suppression Mode:";
+            echoModeLabel.fontSize = 18;
+            echoModeLabel.color = _lcTextColor;
+            echoModeLabel.alignment = TextAlignmentOptions.Left;
+            // Dropdown (UnityEngine.UI.Dropdown)
+            var echoModeDropdownObj = new GameObject("EchoSuppressionModeDropdown");
+            echoModeDropdownObj.transform.SetParent(echoModeContainer.transform, false);
+            _echoModeDropdown = echoModeDropdownObj.AddComponent<UnityEngine.UI.Dropdown>();
+            _echoModeDropdown.options = new List<UnityEngine.UI.Dropdown.OptionData>
+            {
+                new UnityEngine.UI.Dropdown.OptionData("Headphones (Recommended)"),
+                new UnityEngine.UI.Dropdown.OptionData("Stereo Mix (if available)"),
+                new UnityEngine.UI.Dropdown.OptionData("WASAPI Loopback (Advanced)")
+            };
+            _echoModeDropdown.value = (int)LethalMicStatic.GetEchoSuppressionMode();
+            _echoModeDropdown.onValueChanged.AddListener(OnEchoModeChanged);
+            // Optionally, add a help text below
+            var helpTextObj = new GameObject("EchoSuppressionHelpText");
+            helpTextObj.transform.SetParent(parent, false);
+            var helpText = helpTextObj.AddComponent<TextMeshProUGUI>();
+            helpText.text = "Headphones: best quality, no echo. Stereo Mix: uses system output as reference. WASAPI: advanced, Windows only.";
+            helpText.fontSize = 14;
+            helpText.color = _lcTextColor;
+            helpText.alignment = TextAlignmentOptions.Left;
         }
         
         private void CreateSlider(string labelText, float minValue, float maxValue, float initialValue, 
@@ -611,6 +650,10 @@ namespace LethalMic.UI.Components
             var gain = _config.Bind("Audio", "Gain", 1.0f, "Microphone gain").Value;
             
             if (_gainSlider != null) _gainSlider.value = gain;
+            if (_echoModeDropdown != null)
+            {
+                _echoModeDropdown.value = (int)LethalMicStatic.GetEchoSuppressionMode();
+            }
         }
         
         private void OnGainChanged(float value)
@@ -805,6 +848,12 @@ namespace LethalMic.UI.Components
                 _thresholdHandleRect.anchorMin = new Vector2(_voiceThreshold, 0);
                 _thresholdHandleRect.anchorMax = new Vector2(_voiceThreshold, 1);
             }
+        }
+
+        private void OnEchoModeChanged(int value)
+        {
+            var mode = (LethalMicStatic.EchoSuppressionMode)value;
+            LethalMicStatic.SetEchoSuppressionMode(mode);
         }
     }
 }

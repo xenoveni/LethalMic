@@ -33,7 +33,8 @@ namespace LethalMic
         private static int LogCounter = 0;
         
         // Audio processing
-        private static AudioClip microphoneClip;
+        // Remove unused fields to suppress warnings
+        // private static AudioClip microphoneClip;
         private static string selectedDevice;
         private static bool isRecording = false;
         private static float currentMicrophoneLevel = -60f;
@@ -43,7 +44,8 @@ namespace LethalMic
         private static float cpuUsage = 0f;
         private static int audioFrameCount = 0;
         private static int errorCount = 0;
-        private static int lastMicPosition = 0; // Track last sample position
+        // Remove unused fields to suppress warnings
+        // private static int lastMicPosition = 0;
         
         // Configuration
         private static ConfigEntry<bool> EnableMod;
@@ -56,6 +58,7 @@ namespace LethalMic
         private static ConfigEntry<float> CompressionRatio;
         private static ConfigEntry<float> AttackTime;
         private static ConfigEntry<float> ReleaseTime;
+        private static ConfigEntry<EchoSuppressionMode> EchoMode;
         
         // UI
         private static GameObject uiObject;
@@ -99,6 +102,7 @@ namespace LethalMic
                 CompressionRatio = ConfigFile.Bind("Audio", "CompressionRatio", 10f, "Audio compression ratio (1:1 to 20:1)");
                 AttackTime = ConfigFile.Bind("Audio", "AttackTime", 2f, "Compressor attack time in milliseconds (0-100)");
                 ReleaseTime = ConfigFile.Bind("Audio", "ReleaseTime", 50f, "Compressor release time in milliseconds (0-1000)");
+                EchoMode = ConfigFile.Bind("Audio", "EchoSuppressionMode", EchoSuppressionMode.Headphones, "Echo/Noise Suppression Mode: Headphones, StereoMix, WasapiLoopback");
                 
                 GetLogger().LogInfo($"Configuration loaded - Enabled: {EnableMod.Value}, Gain: {MicrophoneGain.Value}");
                 
@@ -559,6 +563,44 @@ namespace LethalMic
 
         // Method to get UI instance for StaticAudioManager
         public static LethalMicUI GetUIIInstance() => uiInstance;
+
+        // Add EchoSuppressionMode enum
+        public enum EchoSuppressionMode
+        {
+            Headphones,
+            StereoMix,
+            WasapiLoopback
+        }
+
+        // In UpdateProcessorSettings or wherever processing is selected:
+        private static void UpdateProcessorSettings()
+        {
+            switch (EchoMode.Value)
+            {
+                case EchoSuppressionMode.Headphones:
+                    // Aggressive noise gate, suppression, compression
+                    StaticAudioManager.SetAggressiveSuppression();
+                    break;
+                case EchoSuppressionMode.StereoMix:
+                    // Try to use Stereo Mix as reference for echo cancellation
+                    StaticAudioManager.SetStereoMixSuppression();
+                    break;
+                case EchoSuppressionMode.WasapiLoopback:
+                    // Try to use WASAPI loopback (NAudio) as reference for echo cancellation
+                    StaticAudioManager.SetWasapiSuppression();
+                    break;
+            }
+        }
+
+        public static EchoSuppressionMode GetEchoSuppressionMode() => EchoMode?.Value ?? EchoSuppressionMode.Headphones;
+        public static void SetEchoSuppressionMode(EchoSuppressionMode mode)
+        {
+            if (EchoMode != null)
+            {
+                EchoMode.Value = mode;
+                UpdateProcessorSettings();
+            }
+        }
     }
 
     // Add this class at the end of the file, outside LethalMicStatic
