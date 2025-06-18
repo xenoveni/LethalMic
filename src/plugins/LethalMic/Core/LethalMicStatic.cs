@@ -196,11 +196,11 @@ namespace LethalMic
                 StaticAudioManager.StartRecording();
 
                 GetLogger().LogInfo($"Successfully initialized audio system with device: {selectedDevice}");
-                
-                // Update UI with success status
-                if (uiInstance != null)
-                {
-                    uiInstance.UpdateMicStatus(selectedDevice, "Connected", 0f);
+
+                    // Update UI with success status
+                    if (uiInstance != null)
+                    {
+                        uiInstance.UpdateMicStatus(selectedDevice, "Connected", 0f);
                 }
             }
             catch (Exception ex)
@@ -421,7 +421,7 @@ namespace LethalMic
                 voiceDetected = StaticAudioManager.IsVoiceDetected();
                 noiseFloor = StaticAudioManager.GetNoiseFloor();
                 cpuUsage = StaticAudioManager.GetCPUUsage();
-                
+
                 audioFrameCount++;
             }
             catch (Exception ex)
