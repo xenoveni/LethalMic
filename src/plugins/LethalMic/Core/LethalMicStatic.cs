@@ -93,12 +93,12 @@ namespace LethalMic
                 MicrophoneGain = ConfigFile.Bind("Audio", "MicrophoneGain", 1.0f, "Microphone input gain (0.0 to 5.0)");
                 InputDevice = ConfigFile.Bind("Audio", "InputDevice", "", "Preferred input device (empty for default)");
                 NoiseGate = ConfigFile.Bind("Audio", "NoiseGate", true, "Enable noise gate");
-                NoiseGateThreshold = ConfigFile.Bind("Audio", "NoiseGateThreshold", 0.01f, "Noise gate threshold (0.0 to 1.0)");
+                NoiseGateThreshold = ConfigFile.Bind("Audio", "NoiseGateThreshold", 0.05f, "Noise gate threshold (0.0 to 1.0)");
                 DebugLogging = ConfigFile.Bind("Debug", "DebugLogging", false, "Enable debug logging");
                 Compression = ConfigFile.Bind("Audio", "Compression", true, "Enable audio compression");
-                CompressionRatio = ConfigFile.Bind("Audio", "CompressionRatio", 4f, "Audio compression ratio (1:1 to 20:1)");
-                AttackTime = ConfigFile.Bind("Audio", "AttackTime", 10f, "Compressor attack time in milliseconds (0-100)");
-                ReleaseTime = ConfigFile.Bind("Audio", "ReleaseTime", 100f, "Compressor release time in milliseconds (0-1000)");
+                CompressionRatio = ConfigFile.Bind("Audio", "CompressionRatio", 10f, "Audio compression ratio (1:1 to 20:1)");
+                AttackTime = ConfigFile.Bind("Audio", "AttackTime", 2f, "Compressor attack time in milliseconds (0-100)");
+                ReleaseTime = ConfigFile.Bind("Audio", "ReleaseTime", 50f, "Compressor release time in milliseconds (0-1000)");
                 
                 GetLogger().LogInfo($"Configuration loaded - Enabled: {EnableMod.Value}, Gain: {MicrophoneGain.Value}");
                 
@@ -481,7 +481,7 @@ namespace LethalMic
             }
         }
         
-        public static float GetNoiseGateThreshold() => NoiseGateThreshold?.Value ?? 0.01f;
+        public static float GetNoiseGateThreshold() => NoiseGateThreshold?.Value ?? 0.05f;
         public static void SetNoiseGateThreshold(float value) 
         { 
             if (NoiseGateThreshold != null) 
@@ -524,7 +524,7 @@ namespace LethalMic
             }
         }
         
-        public static float GetCompressionRatio() => CompressionRatio?.Value ?? 4f;
+        public static float GetCompressionRatio() => CompressionRatio?.Value ?? 10f;
         public static void SetCompressionRatio(float value) 
         { 
             if (CompressionRatio != null) 
@@ -535,7 +535,7 @@ namespace LethalMic
             }
         }
         
-        public static float GetAttackTime() => AttackTime?.Value ?? 10f;
+        public static float GetAttackTime() => AttackTime?.Value ?? 2f;
         public static void SetAttackTime(float value) 
         { 
             if (AttackTime != null) 
@@ -546,7 +546,7 @@ namespace LethalMic
             }
         }
         
-        public static float GetReleaseTime() => ReleaseTime?.Value ?? 100f;
+        public static float GetReleaseTime() => ReleaseTime?.Value ?? 50f;
         public static void SetReleaseTime(float value) 
         { 
             if (ReleaseTime != null) 
